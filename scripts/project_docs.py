@@ -23,7 +23,7 @@ from urllib.parse import urlsplit
 
 
 SCHEMA_VERSION = 2
-LINK_RE = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
+TOOL_VERSION = "0.1.0"
 ROLES = {
     "project_entry", "module_index", "submodule_index", "status", "task_board",
     "contract", "runbook", "reference", "task", "report", "archive_index",
@@ -48,6 +48,77 @@ def utc_now():
 
 def is_external_uri(value):
     return value.startswith("//") or bool(urlsplit(value).scheme)
+
+
+def markdown_link_destinations(text):
+    """Return inline Markdown link destinations without parsing images.
+
+    This small scanner supports balanced and escaped parentheses, angle-bracket
+    destinations, fragments, and optional titles. It deliberately does not try
+    to implement reference-style links because they have no inline destination.
+    """
+    destinations = []
+    cursor = 0
+    while cursor < len(text):
+        label_start = text.find("[", cursor)
+        if label_start < 0:
+            break
+        if label_start > 0 and text[label_start - 1] == "!":
+            cursor = label_start + 1
+            continue
+        label_end = label_start + 1
+        escaped = False
+        while label_end < len(text):
+            char = text[label_end]
+            if char == "]" and not escaped:
+                break
+            escaped = char == "\\" and not escaped
+            if char != "\\":
+                escaped = False
+            label_end += 1
+        if label_end >= len(text) or label_end + 1 >= len(text) or text[label_end + 1] != "(":
+            cursor = label_start + 1
+            continue
+
+        index = label_end + 2
+        while index < len(text) and text[index].isspace():
+            index += 1
+        if index < len(text) and text[index] == "<":
+            end = index + 1
+            while end < len(text) and text[end] != ">":
+                end += 1
+            if end < len(text):
+                destinations.append(text[index + 1:end])
+                cursor = end + 1
+                continue
+
+        value = []
+        depth = 0
+        escaped = False
+        while index < len(text):
+            char = text[index]
+            if escaped:
+                value.append(char)
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == "(":
+                depth += 1
+                value.append(char)
+            elif char == ")":
+                if depth == 0:
+                    break
+                depth -= 1
+                value.append(char)
+            elif char.isspace() and depth == 0:
+                break
+            else:
+                value.append(char)
+            index += 1
+        if value:
+            destinations.append("".join(value))
+        cursor = max(index + 1, label_start + 1)
+    return destinations
 
 
 def extract_index_blocks(text):
@@ -205,8 +276,20 @@ def _index_issues(meta, relpath):
                 value = budget.get(field)
                 if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
                     issues.append(Issue("INVALID_INDEX", f"startup_budget.{field} must be a positive integer", relpath))
-    if "read_when" in meta and not isinstance(meta.get("read_when"), dict):
-        issues.append(Issue("INVALID_INDEX", "read_when must be an object", relpath))
+    if "read_when" in meta:
+        read_when = meta.get("read_when")
+        if (
+            not isinstance(read_when, dict)
+            or set(read_when) != {"any"}
+            or not isinstance(read_when.get("any"), list)
+            or not read_when["any"]
+            or any(not _nonempty_string(item) for item in read_when["any"])
+        ):
+            issues.append(Issue(
+                "INVALID_INDEX",
+                "read_when must be an object with exactly one non-empty any string list",
+                relpath,
+            ))
     return issues
 
 
@@ -218,7 +301,7 @@ class Project:
         self.document_list = []
         self.parse_issues = []
         self.lock_error = None
-        self.lock = {"schema_version": SCHEMA_VERSION, "documents": {}}
+        self.lock = {"schema_version": SCHEMA_VERSION, "tool_version": TOOL_VERSION, "documents": {}}
         self.lock_bytes = b""
         self._load_documents()
         self._load_lock()
@@ -309,6 +392,8 @@ class Project:
             raise ValueError("lock JSON must be an object")
         if value.get("schema_version") != SCHEMA_VERSION:
             raise ValueError("unsupported lock schema")
+        if "tool_version" in value and not _nonempty_string(value.get("tool_version")):
+            raise ValueError("invalid tool_version")
         if not _nonempty_string(value.get("generated_at")):
             raise ValueError("missing generated_at")
         documents = value.get("documents")
@@ -385,7 +470,15 @@ class Project:
         return any(rel == PurePosixPath(root) or PurePosixPath(root) in rel.parents for root in roots)
 
     def _validate_relpath(self, value):
-        if not isinstance(value, str) or not value or Path(value).is_absolute() or ".." in PurePosixPath(value).parts:
+        if (
+            not isinstance(value, str)
+            or not value
+            or "\\" in value
+            or re.match(r"^[A-Za-z]:", value)
+            or Path(value).is_absolute()
+            or PurePosixPath(value).is_absolute()
+            or ".." in PurePosixPath(value).parts
+        ):
             return False
         try:
             target = (self.root / value).resolve()
@@ -774,9 +867,13 @@ class Project:
                     if doc.lifecycle == "active" and self._is_archive_path(target.relpath):
                         report.blocking_errors.append(Issue("ACTIVE_DEPENDS_ON_ARCHIVE", target.id, doc.relpath))
             text = doc.raw.decode("utf-8")
-            for href in LINK_RE.findall(text):
-                href = href.split("#", 1)[0].strip("<>")
-                if not href or href.startswith("#") or is_external_uri(href):
+            for href in markdown_link_destinations(text):
+                href = href.split("#", 1)[0]
+                if not href or href.startswith("#"):
+                    continue
+                if "\\" in href or re.match(r"^[A-Za-z]:", href):
+                    report.blocking_errors.append(Issue("PATH_OUTSIDE_PROJECT", href, doc.relpath)); continue
+                if is_external_uri(href):
                     continue
                 target = (doc.path.parent / href).resolve()
                 try: target.relative_to(self.root)
@@ -991,6 +1088,7 @@ class Project:
         if self.lock_error: raise ValueError("LOCK_CORRUPTED")
         new_lock = dict(self.lock)
         new_lock["schema_version"] = SCHEMA_VERSION
+        new_lock["tool_version"] = TOOL_VERSION
         new_lock["generated_at"] = utc_now()
         docs = dict(new_lock.get("documents", {})); docs[doc_id] = record
         new_lock["documents"] = {key: docs[key] for key in sorted(docs)}
@@ -1045,8 +1143,8 @@ class Project:
             try: text = path.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError): continue
             texts[source_rel] = text
-            for href in LINK_RE.findall(text):
-                href = href.split("#", 1)[0].strip("<>")
+            for href in markdown_link_destinations(text):
+                href = href.split("#", 1)[0]
                 if not href or is_external_uri(href):
                     continue
                 target = (path.parent / href).resolve()
@@ -1180,7 +1278,7 @@ class Project:
 
 def report_dict(project, report):
     return {
-        "command": report.command, "schema_version": SCHEMA_VERSION,
+        "command": report.command, "schema_version": SCHEMA_VERSION, "tool_version": TOOL_VERSION,
         "project_root": str(project.root), "head_commit": project._git_head(),
         "working_tree_dirty": bool(project._dirty_paths()) if project.git_root else False,
         "verification_mode": "git" if project.git_root else "hash_only",
@@ -1241,7 +1339,11 @@ def main(argv=None):
         project = Project.load(args.project_root)
         if args.command == "verify":
             record = project.verify(args.doc, args.status_effect, args.allow_hash_only)
-            if args.format == "json": print(json.dumps({"command": "verify", "ok": True, "document": args.doc, "record": record}, indent=2))
+            if args.format == "json": print(json.dumps({
+                "command": "verify", "schema_version": SCHEMA_VERSION,
+                "tool_version": TOOL_VERSION, "ok": True,
+                "document": args.doc, "record": record,
+            }, indent=2))
             else: print(f"verified {args.doc}")
             return 0
         if args.command == "impact":
@@ -1253,7 +1355,12 @@ def main(argv=None):
         print(f"ERROR: {exc}", file=sys.stderr)
         return 3
     except ValueError as exc:
-        payload = {"command": getattr(args, "command", None), "blocking_errors": [{"code": str(exc).split(":", 1)[0], "message": str(exc)}]}
+        payload = {
+            "command": getattr(args, "command", None),
+            "schema_version": SCHEMA_VERSION,
+            "tool_version": TOOL_VERSION,
+            "blocking_errors": [{"code": str(exc).split(":", 1)[0], "message": str(exc)}],
+        }
         if getattr(args, "format", "text") == "json": print(json.dumps(payload, indent=2))
         else: print(f"ERROR: {exc}", file=sys.stderr)
         return 2

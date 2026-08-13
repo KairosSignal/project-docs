@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,6 +12,7 @@ from pathlib import Path
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "project_docs.py"
 README = Path(__file__).parents[1] / "README.md"
+DEMO = Path(__file__).parents[1] / "examples" / "run_demo.py"
 
 
 def load_module():
@@ -222,8 +224,75 @@ class ParserAndStructureTests(RepoCase):
         report = load_module().Project.load(self.root).check()
         self.assertIn("CROSS_PLATFORM_EOL_RISK", {x.code for x in report.warnings})
 
+    def test_read_when_requires_nonempty_any_conditions(self):
+        self.basic()
+        root = self.read_meta("PROJECT_MAP.md")
+        root["read_when"] = {"any": ["the task changes authentication"]}
+        self.write_meta("PROJECT_MAP.md", root)
+        self.assertNotIn(
+            "INVALID_INDEX",
+            {issue.code for issue in load_module().Project.load(self.root).check().blocking_errors},
+        )
+
+        for invalid in ({}, {"any": "authentication"}, {"any": []}, {"any": [""]}, {"all": ["auth"]}):
+            with self.subTest(invalid=invalid):
+                root["read_when"] = invalid
+                self.write_meta("PROJECT_MAP.md", root)
+                self.assertIn(
+                    "INVALID_INDEX",
+                    {issue.code for issue in load_module().Project.load(self.root).check().blocking_errors},
+                )
+
+    def test_relative_paths_reject_windows_and_backslash_forms_on_every_os(self):
+        self.basic()
+        project = load_module().Project.load(self.root)
+
+        for value in ("C:/secrets.md", "C:\\secrets.md", "\\\\server\\share.md", "docs\\child.md"):
+            with self.subTest(value=value):
+                self.assertFalse(project._validate_relpath(value))
+
+    def test_windows_markdown_link_is_a_path_error_on_every_os(self):
+        self.basic()
+        child = self.read_meta("docs/child.md")
+        self.write_meta("docs/child.md", child, body="[escape](C:/secrets.md)")
+
+        report = load_module().Project.load(self.root).check()
+
+        self.assertIn("PATH_OUTSIDE_PROJECT", {issue.code for issue in report.blocking_errors})
+
+    def test_valid_markdown_link_destinations_do_not_report_broken_links(self):
+        self.basic()
+        self.write("docs/foo_(bar).md", "# Parentheses\n")
+        self.write("docs/a.md", "# Title destination\n")
+        self.write("docs/a(b).md", "# Escaped parentheses\n")
+        child = self.read_meta("docs/child.md")
+        body = "\n".join((
+            "[parenthesized](foo_(bar).md)",
+            "[angle](<foo_(bar).md>)",
+            "[title](a.md \"optional title\")",
+            "[escaped](a\\(b\\).md#section)",
+            "[fragment](a.md#section)",
+        ))
+        self.write_meta("docs/child.md", child, body=body)
+
+        report = load_module().Project.load(self.root).check()
+
+        self.assertNotIn("BROKEN_LINK", {issue.code for issue in report.blocking_errors})
+
 
 class LockAndImpactTests(RepoCase):
+    def test_reports_and_lock_include_tool_version(self):
+        self.basic()
+        mod = load_module()
+        project = mod.Project.load(self.root)
+
+        payload = mod.report_dict(project, project.check())
+        project.verify("child", status_effect="initial")
+        lock = json.loads((self.root / ".project-docs.lock.json").read_text(encoding="utf-8"))
+
+        self.assertEqual("0.1.0", payload["tool_version"])
+        self.assertEqual("0.1.0", lock["tool_version"])
+
     def test_unverified_then_verify_then_current(self):
         self.basic()
         mod = load_module()
@@ -321,7 +390,7 @@ class LockAndImpactTests(RepoCase):
 
 class CliAndArchiveTests(RepoCase):
     def run_cli(self, *args):
-        return subprocess.run(["python3", str(SCRIPT), *args], text=True, capture_output=True)
+        return subprocess.run([sys.executable, str(SCRIPT), *args], text=True, capture_output=True)
 
     def test_json_output_and_exit_codes(self):
         self.basic()
@@ -370,7 +439,7 @@ class CliAndArchiveTests(RepoCase):
 
 class AdversarialSchemaTests(RepoCase):
     def run_cli(self, *args):
-        return subprocess.run(["python3", str(SCRIPT), *args], text=True, capture_output=True)
+        return subprocess.run([sys.executable, str(SCRIPT), *args], text=True, capture_output=True)
 
     def test_missing_id_is_invalid_index_without_traceback(self):
         self.basic()
@@ -650,7 +719,7 @@ class LockAndImpactRevisionTests(RepoCase):
 
         processes = [
             subprocess.Popen(
-                ["python3", str(SCRIPT), "verify", str(self.root), "--doc", f"child-{index}"],
+                [sys.executable, str(SCRIPT), "verify", str(self.root), "--doc", f"child-{index}"],
                 text=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -742,13 +811,33 @@ class DiscoveryAndArchiveContractTests(RepoCase):
 
 class CliRevisionTests(RepoCase):
     def run_cli(self, *args, cwd=None):
-        return subprocess.run(["python3", str(SCRIPT), *args], cwd=cwd, text=True, capture_output=True)
+        return subprocess.run([sys.executable, str(SCRIPT), *args], cwd=cwd, text=True, capture_output=True)
 
     def test_argument_errors_use_exit_code_three(self):
         result = self.run_cli("check")
 
         self.assertEqual(result.returncode, 3)
         self.assertNotIn("Traceback", result.stderr)
+
+    def test_verify_json_includes_tool_version(self):
+        self.basic()
+
+        result = self.run_cli(
+            "verify", str(self.root), "--doc", "child",
+            "--status-effect", "initial", "--format", "json",
+        )
+
+        self.assertEqual(0, result.returncode)
+        self.assertEqual("0.1.0", json.loads(result.stdout)["tool_version"])
+
+    def test_runnable_demo_exercises_current_and_stale_workflow(self):
+        result = subprocess.run(
+            [sys.executable, str(DEMO)], text=True, capture_output=True,
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("all 4 documents CURRENT", result.stdout)
+        self.assertIn("impact exit code 1 accepted", result.stdout)
 
     def test_hash_only_reports_explicit_warning(self):
         plain = Path(tempfile.mkdtemp())

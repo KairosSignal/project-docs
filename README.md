@@ -1,5 +1,7 @@
 # Project Docs
 
+[![Tests](https://github.com/KairosSignal/project-docs/actions/workflows/test.yml/badge.svg)](https://github.com/KairosSignal/project-docs/actions/workflows/test.yml)
+
 Project Docs is an agent skill and a dependency-free Python CLI for keeping
 project documentation small, current, and safe for AI-assisted development.
 
@@ -125,6 +127,23 @@ Add `--format json` for automation.
 
 `discover`, `check`, `impact`, and `archive-plan` are read-only. `verify` is the
 only writing command, and it writes only `.project-docs.lock.json` atomically.
+
+CLI JSON reports and generated lock files include `tool_version`. The current
+release line is `0.1.0`.
+
+## Runnable Demo
+
+Run the bundled example from any checkout:
+
+```bash
+python3 examples/run_demo.py
+```
+
+The demo creates a temporary Git repository, verifies four documents to
+`CURRENT`, changes authentication code, and checks that only the authentication
+contract and its summary chain enter the update queue. It also demonstrates the
+CI contract: exit code `1` is ordinary stale state, while only `2` and `3`
+block.
 
 ## Minimal Index
 

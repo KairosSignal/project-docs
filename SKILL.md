@@ -23,14 +23,16 @@ guess which status file is authoritative.
 
 ## Commands
 
-Run the standard-library CLI at `scripts/project_docs.py`:
+Resolve the directory containing this `SKILL.md` once as `<skill-root>`. Run
+the standard-library CLI from that absolute skill root, not from the target
+project's current working directory:
 
 ```bash
-python3 scripts/project_docs.py discover <project-root>
-python3 scripts/project_docs.py check <project-root>
-python3 scripts/project_docs.py impact <project-root> [--since COMMIT]
-python3 scripts/project_docs.py verify <project-root> --doc DOC_ID --status-effect initial|changed|unchanged
-python3 scripts/project_docs.py archive-plan <project-root>
+python3 <skill-root>/scripts/project_docs.py discover <project-root>
+python3 <skill-root>/scripts/project_docs.py check <project-root>
+python3 <skill-root>/scripts/project_docs.py impact <project-root> [--since COMMIT]
+python3 <skill-root>/scripts/project_docs.py verify <project-root> --doc DOC_ID --status-effect initial|changed|unchanged
+python3 <skill-root>/scripts/project_docs.py archive-plan <project-root>
 ```
 
 Use `--format json` for agents and automation.

@@ -13,8 +13,9 @@
 
 Every managed active or superseded Markdown file contains exactly one fenced
 `project-docs-index` block with strict JSON. Archived legacy files may remain
-unmanaged. Use relative POSIX paths only; reject absolute paths, `..` escapes,
-and symlinks resolving outside the project root.
+unmanaged. Use relative POSIX paths only. Reject absolute paths, Windows
+drive-qualified paths, UNC paths, every backslash path form, `..` escapes, and
+symlinks resolving outside the project root on every operating system.
 
 ## Fields And Enums
 
@@ -39,6 +40,16 @@ active superseded archived
 
 Optional fields: `startup`, `startup_budget`, `read_when`, `children`,
 `depends_on`, `watch_paths`, `archive_roots`, and `supersedes`.
+
+When present, `read_when` has exactly this shape:
+
+```json
+{"any": ["the task changes authentication", "the task changes sessions"]}
+```
+
+`any` must contain one or more non-empty strings and no sibling keys are
+allowed. These phrases guide an agent's semantic routing; the CLI validates
+their shape but does not infer task meaning from them.
 
 Use exact `authority_key` equality as a blocking conflict between active docs.
 Use shared suffix segments only for the non-blocking
@@ -69,6 +80,10 @@ Commit `.project-docs.lock.json`. Sort documents by ID and serialize with stable
 field ordering and indentation. Each record stores path, authority key,
 document SHA-256, verified commit/time, `status_effect`, and snapshots for
 children, dependencies, and watch paths.
+
+The lock root and every JSON command report include `tool_version`. Version
+`0.1.0` writes this field. Older schema-v2 locks without it remain readable and
+gain it on their next successful verification.
 
 Bind `status_effect` to the current document hash and verified commit. First
 verification uses `initial`; later versions use `changed` or `unchanged` when a
