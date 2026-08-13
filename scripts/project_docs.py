@@ -15,7 +15,9 @@ import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
+import time
 import sys
 import tempfile
 from datetime import datetime, timezone
@@ -24,7 +26,7 @@ from urllib.parse import urlsplit
 
 
 SCHEMA_VERSION = 2
-TOOL_VERSION = "0.1.0"
+TOOL_VERSION = "0.1.1"
 ASCII_PUNCTUATION = frozenset(r"!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~")
 ROLES = {
     "project_entry", "module_index", "submodule_index", "status", "task_board",
@@ -38,6 +40,18 @@ LIFECYCLES = {"active", "superseded", "archived"}
 PROPAGATIONS = {"link_only", "summary", "status_only", "contract"}
 IGNORED_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__"}
 HEX_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+MAX_MARKDOWN_BYTES = 16 * 1024 * 1024
+MAX_LOCK_BYTES = 16 * 1024 * 1024
+MAX_CONFIG_BYTES = 1024 * 1024
+MAX_GUARD_BYTES = 4096
+HASH_CHUNK_BYTES = 1024 * 1024
+GUARD_STALE_SECONDS = 300
+FILE_SAFETY_CODES = {"PATH_OUTSIDE_PROJECT", "SYMLINK_NOT_ALLOWED", "NON_REGULAR_FILE", "FILE_TOO_LARGE", "UNSAFE_FILE"}
+
+
+def _file_safety_code(exc, default="DOCUMENT_READ_ERROR"):
+    code = str(exc).split(":", 1)[0]
+    return code if code in FILE_SAFETY_CODES else default
 
 
 def sha256_bytes(data):
@@ -381,37 +395,100 @@ class Project:
                 if name.lower().endswith(".md"):
                     yield base / name
 
+    def _safe_regular_path(self, path, max_bytes=None):
+        """Resolve a project file and reject unsafe file types before reading."""
+        path = Path(path)
+        info = path.lstat()
+        try:
+            resolved = path.resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise ValueError(f"UNSAFE_FILE: {path}") from exc
+        try:
+            resolved.relative_to(self.root)
+        except ValueError as exc:
+            raise ValueError(f"PATH_OUTSIDE_PROJECT: {path}") from exc
+        if stat.S_ISLNK(info.st_mode):
+            raise ValueError(f"SYMLINK_NOT_ALLOWED: {path}")
+        if not stat.S_ISREG(info.st_mode):
+            raise ValueError(f"NON_REGULAR_FILE: {path}")
+        if max_bytes is not None and info.st_size > max_bytes:
+            raise ValueError(f"FILE_TOO_LARGE: {path} ({info.st_size} > {max_bytes})")
+        return resolved
+
+    def _open_regular_file(self, path, max_bytes=None):
+        resolved = self._safe_regular_path(path, max_bytes=max_bytes)
+        flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        fd = None
+        try:
+            fd = os.open(str(resolved), flags)
+            info = os.fstat(fd)
+            if not stat.S_ISREG(info.st_mode):
+                raise ValueError(f"NON_REGULAR_FILE: {path}")
+            if max_bytes is not None and info.st_size > max_bytes:
+                raise ValueError(f"FILE_TOO_LARGE: {path} ({info.st_size} > {max_bytes})")
+            return resolved, fd
+        except Exception:
+            if fd is not None:
+                os.close(fd)
+            raise
+
+    def _read_file_bytes(self, path, max_bytes):
+        resolved, fd = self._open_regular_file(path, max_bytes=max_bytes)
+        with os.fdopen(fd, "rb") as handle:
+            data = handle.read(max_bytes + 1)
+        if len(data) > max_bytes:
+            raise ValueError(f"FILE_TOO_LARGE: {path} (> {max_bytes})")
+        return resolved, data
+
+    def _release_guard(self, guard_path, guard_fd, guard_token):
+        """Release only the guard instance owned by this verify call."""
+        if guard_fd is None:
+            return
+        os.close(guard_fd)
+        try:
+            _resolved, current_token = self._read_file_bytes(guard_path, MAX_GUARD_BYTES)
+        except (OSError, ValueError):
+            return
+        if current_token != guard_token:
+            return
+        try:
+            guard_path.unlink()
+        except FileNotFoundError:
+            pass
+
     def _safe_markdown_entries(self, report):
         for path in self._markdown_files():
             try:
-                yield path, rel_posix(path, self.root)
-            except ValueError:
+                resolved = self._safe_regular_path(path, max_bytes=MAX_MARKDOWN_BYTES)
+                yield resolved, rel_posix(resolved, self.root)
+            except ValueError as exc:
                 report.blocking_errors.append(Issue(
-                    "PATH_OUTSIDE_PROJECT",
-                    f"Markdown resolves outside project: {path}",
+                    _file_safety_code(exc),
+                    str(exc),
                     os.path.relpath(path, self.root),
+                ))
+            except OSError as exc:
+                report.blocking_errors.append(Issue(
+                    "DOCUMENT_READ_ERROR", str(exc), os.path.relpath(path, self.root)
                 ))
 
     def _load_documents(self):
         for path in self._markdown_files():
             try:
-                raw = path.read_bytes()
+                resolved, raw = self._read_file_bytes(path, MAX_MARKDOWN_BYTES)
                 text = raw.decode("utf-8", errors="strict")
+            except ValueError as exc:
+                self.parse_issues.append(Issue(
+                    _file_safety_code(exc), str(exc), os.path.relpath(path, self.root)
+                ))
+                continue
             except (OSError, UnicodeDecodeError) as exc:
                 self.parse_issues.append(Issue("DOCUMENT_READ_ERROR", str(exc), str(path)))
                 continue
             matches = extract_index_blocks(text)
             if not matches:
                 continue
-            try:
-                rel = rel_posix(path, self.root)
-            except ValueError:
-                self.parse_issues.append(Issue(
-                    "PATH_OUTSIDE_PROJECT",
-                    f"managed Markdown resolves outside project: {path}",
-                    os.path.relpath(path, self.root),
-                ))
-                continue
+            rel = rel_posix(resolved, self.root)
             if len(matches) != 1:
                 self.parse_issues.append(Issue("INVALID_INDEX", "document must contain exactly one index", rel))
                 continue
@@ -424,8 +501,8 @@ class Project:
             self.parse_issues.extend(issues)
             if not isinstance(meta, dict):
                 continue
-            doc = Document(path, rel, meta, raw)
-            doc.content_sha256 = self._file_sha256(path, raw)
+            doc = Document(resolved, rel, meta, raw)
+            doc.content_sha256 = self._file_sha256(resolved, raw)
             self.document_list.append(doc)
             if doc.id and doc.id not in self.documents:
                 self.documents[doc.id] = doc
@@ -435,7 +512,7 @@ class Project:
         if not path.exists():
             return
         try:
-            raw = path.read_bytes()
+            _resolved, raw = self._read_file_bytes(path, MAX_LOCK_BYTES)
             value = json.loads(raw.decode("utf-8"))
             self._validate_lock(value)
             self.lock = value
@@ -526,23 +603,39 @@ class Project:
         return any(rel == PurePosixPath(root) or PurePosixPath(root) in rel.parents for root in roots)
 
     def _file_sha256(self, path, data=None):
-        """Hash content using the repository's explicit LF policy when declared.
-
-        A freshly created Windows worktree file may still contain CRLF even
-        though Git has staged canonical LF bytes. When .gitattributes declares
-        ``eol=lf``, hash the LF-equivalent bytes so verified locks remain stable
-        across clones. Files without that explicit policy keep raw-byte hashes.
-        """
-        path = Path(path)
-        if data is None:
-            data = path.read_bytes()
-        rel = rel_posix(path, self.root)
+        """Hash safe regular files without loading watched files into memory."""
+        resolved = self._safe_regular_path(path)
+        rel = rel_posix(resolved, self.root)
+        normalize_lf = False
         if self.git_root:
             attr = run_git(self.root, "check-attr", "-z", "eol", "--", rel)
             fields = attr.stdout.split("\0") if attr.returncode == 0 else []
-            if len(fields) >= 3 and fields[1] == "eol" and fields[2] == "lf":
+            normalize_lf = len(fields) >= 3 and fields[1] == "eol" and fields[2] == "lf"
+        if data is not None:
+            if normalize_lf:
                 data = data.replace(b"\r\n", b"\n")
-        return sha256_bytes(data)
+            return sha256_bytes(data)
+
+        _resolved, fd = self._open_regular_file(resolved)
+        digest = hashlib.sha256()
+        carry = b""
+        with os.fdopen(fd, "rb") as handle:
+            while True:
+                chunk = handle.read(HASH_CHUNK_BYTES)
+                if not chunk:
+                    break
+                if normalize_lf:
+                    chunk = carry + chunk
+                    if chunk.endswith(b"\r"):
+                        carry, chunk = b"\r", chunk[:-1]
+                    else:
+                        carry = b""
+                    digest.update(chunk.replace(b"\r\n", b"\n"))
+                else:
+                    digest.update(chunk)
+            if normalize_lf and carry:
+                digest.update(carry)
+        return digest.hexdigest()
 
     def _validate_relpath(self, value):
         if (
@@ -636,10 +729,9 @@ class Project:
         values = []
         for path in sorted(paths):
             try:
-                resolved = path.resolve()
-                resolved.relative_to(self.root)
-            except ValueError:
-                raise ValueError(f"PATH_OUTSIDE_PROJECT: {pattern}")
+                resolved = self._safe_regular_path(path)
+            except (OSError, ValueError) as exc:
+                raise ValueError(f"{_file_safety_code(exc, 'PATH_OUTSIDE_PROJECT')}: {pattern}") from exc
             values.append({"path": rel_posix(resolved, self.root), "sha256": self._file_sha256(resolved)})
         return values
 
@@ -896,8 +988,15 @@ class Project:
             unique = [doc.relpath] + list(dict.fromkeys(startup))
             chars = 0
             for value in unique:
-                try: chars += len((self.root / value).read_text(encoding="utf-8"))
-                except (OSError, UnicodeDecodeError): pass
+                try:
+                    _resolved, raw = self._read_file_bytes(self.root / value, MAX_MARKDOWN_BYTES)
+                    chars += len(raw.decode("utf-8"))
+                except FileNotFoundError:
+                    pass
+                except ValueError as exc:
+                    report.blocking_errors.append(Issue(_file_safety_code(exc), str(exc), value))
+                except (OSError, UnicodeDecodeError):
+                    pass
             if len(unique) > budget.get("max_files", 10**9) or chars > budget.get("max_characters", 10**18):
                 code = "STARTUP_BUDGET_EXCEEDED" if doc.level == 0 else "MODULE_BUDGET_EXCEEDED"
                 report.warnings.append(Issue(code, f"files={len(unique)} characters={chars}", doc.relpath))
@@ -906,12 +1005,13 @@ class Project:
             has_markdown_lf = False
             if attributes_path.exists():
                 try:
-                    for line in attributes_path.read_text(encoding="utf-8").splitlines():
+                    _resolved, attributes_raw = self._read_file_bytes(attributes_path, MAX_CONFIG_BYTES)
+                    for line in attributes_raw.decode("utf-8").splitlines():
                         tokens = line.split()
                         if tokens and tokens[0] == "*.md" and "text" in tokens and "eol=lf" in tokens:
                             has_markdown_lf = True
                             break
-                except (OSError, UnicodeDecodeError):
+                except (OSError, UnicodeDecodeError, ValueError):
                     pass
             if not has_markdown_lf:
                 report.warnings.append(Issue(
@@ -1181,24 +1281,49 @@ class Project:
         fd, tmp_name = tempfile.mkstemp(prefix=".project-docs-lock-", dir=lock_path.parent)
         guard_path = lock_path.with_name(lock_path.name + ".guard")
         guard_fd = None
+        guard_token = None
         try:
             with os.fdopen(fd, "wb") as handle:
                 handle.write(payload); handle.flush(); os.fsync(handle.fileno())
+            guard_token = f"{os.getpid()}:{time.time_ns()}:{os.urandom(16).hex()}".encode("ascii")
+
+            def acquire_guard():
+                acquired_fd = os.open(guard_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+                try:
+                    os.write(acquired_fd, guard_token)
+                    os.fsync(acquired_fd)
+                except Exception:
+                    os.close(acquired_fd)
+                    try:
+                        guard_path.unlink()
+                    except FileNotFoundError:
+                        pass
+                    raise
+                return acquired_fd
+
             try:
-                guard_fd = os.open(guard_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+                guard_fd = acquire_guard()
             except FileExistsError as exc:
-                raise ValueError("LOCK_CONCURRENT_MODIFICATION") from exc
-            current = lock_path.read_bytes() if lock_path.exists() else b""
-            if current != original:
-                raise ValueError("LOCK_CONCURRENT_MODIFICATION")
-            os.replace(tmp_name, lock_path)
-        finally:
-            if guard_fd is not None:
-                os.close(guard_fd)
+                try:
+                    guard_age = time.time() - guard_path.lstat().st_mtime
+                except FileNotFoundError:
+                    guard_age = 0
+                if guard_age <= GUARD_STALE_SECONDS:
+                    raise ValueError("LOCK_CONCURRENT_MODIFICATION") from exc
                 try:
                     guard_path.unlink()
                 except FileNotFoundError:
                     pass
+                try:
+                    guard_fd = acquire_guard()
+                except FileExistsError as retry_exc:
+                    raise ValueError("LOCK_CONCURRENT_MODIFICATION") from retry_exc
+            current = self._read_file_bytes(lock_path, MAX_LOCK_BYTES)[1] if lock_path.exists() else b""
+            if current != original:
+                raise ValueError("LOCK_CONCURRENT_MODIFICATION")
+            os.replace(tmp_name, lock_path)
+        finally:
+            self._release_guard(guard_path, guard_fd, guard_token)
             if os.path.exists(tmp_name): os.unlink(tmp_name)
         self.lock, self.lock_bytes, self.lock_error = new_lock, payload, None
         return record
@@ -1223,9 +1348,15 @@ class Project:
         hashes = {}
         texts = {}
         for path, source_rel in entries:
-            hashes.setdefault(sha256_bytes(path.read_bytes()), []).append(source_rel)
-            try: text = path.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError): continue
+            try:
+                _resolved, raw = self._read_file_bytes(path, MAX_MARKDOWN_BYTES)
+                text = raw.decode("utf-8")
+            except ValueError as exc:
+                report.blocking_errors.append(Issue(_file_safety_code(exc), str(exc), source_rel))
+                continue
+            except (OSError, UnicodeDecodeError):
+                continue
+            hashes.setdefault(sha256_bytes(raw), []).append(source_rel)
             texts[source_rel] = text
             for href in markdown_link_destinations(text):
                 href = href.split("#", 1)[0]
