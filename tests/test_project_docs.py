@@ -1031,5 +1031,83 @@ class R3RegressionTests(RepoCase):
         self.assertNotIn("ARCHIVE_AS_ACTIVE_CHILD", codes)
 
 
+class FilesystemHardeningTests(RepoCase):
+    def test_internal_markdown_symlink_is_rejected(self):
+        self.basic()
+        target = self.write("docs/internal-target.md", "# Target\n")
+        alias = self.root / "alias.md"
+        try:
+            alias.symlink_to(target)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"symlink creation unavailable: {exc}")
+
+        report = load_module().Project.load(self.root).check()
+        self.assertIn("SYMLINK_NOT_ALLOWED", {issue.code for issue in report.blocking_errors})
+
+    def test_large_markdown_is_rejected_without_full_read(self):
+        self.basic()
+        mod = load_module()
+        huge = self.root / "docs/huge.md"
+        with huge.open("wb") as handle:
+            handle.truncate(mod.MAX_MARKDOWN_BYTES + 1)
+
+        project = mod.Project.load(self.root)
+        self.assertIn("FILE_TOO_LARGE", {issue.code for issue in project.parse_issues})
+
+    def test_non_regular_markdown_is_rejected(self):
+        if not hasattr(os, "mkfifo"):
+            self.skipTest("FIFO creation is unavailable")
+        self.basic()
+        fifo = self.root / "docs/fifo.md"
+        os.mkfifo(fifo)
+
+        project = load_module().Project.load(self.root)
+        self.assertIn("NON_REGULAR_FILE", {issue.code for issue in project.parse_issues})
+
+    def test_watched_file_hashing_streams_instead_of_read_bytes(self):
+        from unittest import mock
+
+        self.basic()
+        mod = load_module()
+        payload = b"abc123\r\n" * ((mod.HASH_CHUNK_BYTES * 2) // 8 + 17)
+        watched = self.root / "src/blob.bin"
+        watched.write_bytes(payload)
+        project = mod.Project.load(self.root)
+
+        with mock.patch.object(mod.Path, "read_bytes", side_effect=AssertionError("read_bytes used")):
+            actual = project._file_sha256(watched)
+
+        self.assertEqual(actual, mod.sha256_bytes(payload))
+
+    def test_oversized_lock_is_rejected_without_full_read(self):
+        self.basic()
+        mod = load_module()
+        lock_path = self.root / ".project-docs.lock.json"
+        with lock_path.open("wb") as handle:
+            handle.truncate(mod.MAX_LOCK_BYTES + 1)
+
+        project = mod.Project.load(self.root)
+        self.assertIsNotNone(project.lock_error)
+        self.assertEqual(project.lock_error.code, "LOCK_CORRUPTED")
+        self.assertIn("FILE_TOO_LARGE", project.lock_error.message)
+
+    def test_stale_guard_is_recovered_but_fresh_guard_is_refused(self):
+        self.basic()
+        mod = load_module()
+        guard = self.root / ".project-docs.lock.json.guard"
+        guard.write_text("stale", encoding="utf-8")
+        import time as _time
+        old = _time.time() - mod.GUARD_STALE_SECONDS - 5
+        os.utime(guard, (old, old))
+
+        project = mod.Project.load(self.root)
+        project.verify("child", status_effect="initial")
+        self.assertFalse(guard.exists())
+
+        guard.write_text("fresh", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "LOCK_CONCURRENT_MODIFICATION"):
+            mod.Project.load(self.root).verify("root", status_effect="initial")
+
+
 if __name__ == "__main__":
     unittest.main()
