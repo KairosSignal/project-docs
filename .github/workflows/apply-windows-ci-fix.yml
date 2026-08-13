@@ -4,123 +4,48 @@ on:
   push:
     branches:
       - fix/windows-ci-cross-platform
+    paths:
+      - .github/workflows/apply-windows-ci-fix.yml
 
 permissions:
   contents: write
 
 jobs:
   patch:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: fix/windows-ci-cross-platform
           fetch-depth: 0
-      - name: Patch cross-platform path and hash semantics
+      - name: Patch implementation
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          path = Path('scripts/project_docs.py')
-          text = path.read_text(encoding='utf-8')
+          path = Path("scripts/project_docs.py")
+          text = path.read_text(encoding="utf-8")
 
-          old = '''            doc = Document(path, rel, meta, raw)
-            self.document_list.append(doc)
-'''
-          new = '''            doc = Document(path, rel, meta, raw)
-            doc.content_sha256 = self._file_sha256(path, raw)
-            self.document_list.append(doc)
-'''
-          if old not in text:
-              raise SystemExit('document hash patch anchor not found')
+          old = """            doc = Document(path, rel, meta, raw)\n            self.document_list.append(doc)\n"""
+          new = """            doc = Document(path, rel, meta, raw)\n            doc.content_sha256 = self._file_sha256(path, raw)\n            self.document_list.append(doc)\n"""
+          assert old in text
           text = text.replace(old, new, 1)
 
-          old = '''    def _validate_relpath(self, value):
-        if (
-            not isinstance(value, str)
-            or not value
-            or "\\\\" in value
-            or re.match(r"^[A-Za-z]:", value)
-            or Path(value).is_absolute()
-            or PurePosixPath(value).is_absolute()
-            or ".." in PurePosixPath(value).parts
-        ):
-            return False
-        try:
-            target = (self.root / value).resolve()
-            target.relative_to(self.root)
-        except (OSError, ValueError):
-            return False
-        return True
-'''
-          new = '''    def _file_sha256(self, path, data=None):
-        """Hash project content using committed LF policy when Git declares one.
-
-        Git stores text canonically, but a freshly created Windows worktree file
-        can still contain CRLF until Git rewrites it. If .gitattributes declares
-        ``eol=lf``, hash the equivalent LF bytes so a verified lock remains
-        stable after cloning on another platform. Files without that explicit
-        policy keep raw-byte hashing.
-        """
-        path = Path(path)
-        if data is None:
-            data = path.read_bytes()
-        rel = rel_posix(path, self.root)
-        if self.git_root:
-            attr = run_git(self.root, "check-attr", "-z", "eol", "--", rel)
-            fields = attr.stdout.split("\\0") if attr.returncode == 0 else []
-            if len(fields) >= 3 and fields[1] == "eol" and fields[2] == "lf":
-                data = data.replace(b"\\r\\n", b"\\n")
-        return sha256_bytes(data)
-
-    def _validate_relpath(self, value):
-        if (
-            not isinstance(value, str)
-            or not value
-            or "\\\\" in value
-            or re.match(r"^[A-Za-z]:", value)
-            or Path(value).is_absolute()
-            or PurePosixPath(value).is_absolute()
-            or ".." in PurePosixPath(value).parts
-        ):
-            return False
-
-        # Wildcard patterns are syntax, not filesystem paths. Resolving the
-        # full string is platform-dependent (notably on Windows/Python 3.9).
-        # Resolve only the literal prefix; concrete matches are containment-
-        # checked again in _resolved_pattern before they are read.
-        static_parts = []
-        for part in PurePosixPath(value).parts:
-            if any(char in part for char in "*?["):
-                break
-            static_parts.append(part)
-        try:
-            target = self.root.joinpath(*static_parts).resolve()
-            target.relative_to(self.root)
-        except (OSError, ValueError):
-            return False
-        return True
-'''
-          if old not in text:
-              raise SystemExit('relpath patch anchor not found')
+          old = """    def _validate_relpath(self, value):\n        if (\n            not isinstance(value, str)\n            or not value\n            or \"\\\\\" in value\n            or re.match(r\"^[A-Za-z]:\", value)\n            or Path(value).is_absolute()\n            or PurePosixPath(value).is_absolute()\n            or \"..\" in PurePosixPath(value).parts\n        ):\n            return False\n        try:\n            target = (self.root / value).resolve()\n            target.relative_to(self.root)\n        except (OSError, ValueError):\n            return False\n        return True\n"""
+          new = """    def _file_sha256(self, path, data=None):\n        \"\"\"Hash content using the repository's explicit LF policy when declared.\n\n        A freshly created Windows worktree file may still contain CRLF even\n        though Git has staged canonical LF bytes. When .gitattributes declares\n        ``eol=lf``, hash the LF-equivalent bytes so verified locks remain stable\n        across clones. Files without that explicit policy keep raw-byte hashes.\n        \"\"\"\n        path = Path(path)\n        if data is None:\n            data = path.read_bytes()\n        rel = rel_posix(path, self.root)\n        if self.git_root:\n            attr = run_git(self.root, \"check-attr\", \"-z\", \"eol\", \"--\", rel)\n            fields = attr.stdout.split(\"\\0\") if attr.returncode == 0 else []\n            if len(fields) >= 3 and fields[1] == \"eol\" and fields[2] == \"lf\":\n                data = data.replace(b\"\\r\\n\", b\"\\n\")\n        return sha256_bytes(data)\n\n    def _validate_relpath(self, value):\n        if (\n            not isinstance(value, str)\n            or not value\n            or \"\\\\\" in value\n            or re.match(r\"^[A-Za-z]:\", value)\n            or Path(value).is_absolute()\n            or PurePosixPath(value).is_absolute()\n            or \"..\" in PurePosixPath(value).parts\n        ):\n            return False\n\n        # Glob patterns are syntax, not concrete filesystem paths. Resolve only\n        # their literal prefix; concrete matches are containment-checked again\n        # in _resolved_pattern before any matched file is read.\n        static_parts = []\n        for part in PurePosixPath(value).parts:\n            if any(char in part for char in \"*?[\"):\n                break\n            static_parts.append(part)\n        try:\n            target = self.root.joinpath(*static_parts).resolve()\n            target.relative_to(self.root)\n        except (OSError, ValueError):\n            return False\n        return True\n"""
+          assert old in text
           text = text.replace(old, new, 1)
 
-          old = '''            values.append({"path": rel_posix(resolved, self.root), "sha256": sha256_bytes(resolved.read_bytes())})
-'''
-          new = '''            values.append({"path": rel_posix(resolved, self.root), "sha256": self._file_sha256(resolved)})
-'''
-          if old not in text:
-              raise SystemExit('watch hash patch anchor not found')
+          old = """            values.append({\"path\": rel_posix(resolved, self.root), \"sha256\": sha256_bytes(resolved.read_bytes())})\n"""
+          new = """            values.append({\"path\": rel_posix(resolved, self.root), \"sha256\": self._file_sha256(resolved)})\n"""
+          assert old in text
           text = text.replace(old, new, 1)
 
-          path.write_text(text, encoding='utf-8', newline='\n')
+          path.write_text(text, encoding="utf-8", newline="\n")
           PY
-
           git config user.name "KairosSignal CI Fix"
           git config user.email "noreply@kairossignal.com"
-          git rm .github/workflows/apply-windows-ci-fix.yml
           git add scripts/project_docs.py
           git commit -m "fix: stabilize Windows path and hash handling"
           git push origin HEAD:fix/windows-ci-cross-platform
