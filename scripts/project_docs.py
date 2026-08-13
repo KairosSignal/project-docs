@@ -9,6 +9,7 @@ library and never rewrites Markdown content.
 from __future__ import annotations
 
 import argparse
+import bisect
 import fnmatch
 import hashlib
 import json
@@ -24,6 +25,7 @@ from urllib.parse import urlsplit
 
 SCHEMA_VERSION = 2
 TOOL_VERSION = "0.1.0"
+ASCII_PUNCTUATION = frozenset(r"!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~")
 ROLES = {
     "project_entry", "module_index", "submodule_index", "status", "task_board",
     "contract", "runbook", "reference", "task", "report", "archive_index",
@@ -50,74 +52,127 @@ def is_external_uri(value):
     return value.startswith("//") or bool(urlsplit(value).scheme)
 
 
-def markdown_link_destinations(text):
-    """Return inline Markdown link destinations without parsing images.
+def _code_span_ranges(text):
+    """Return paired backtick ranges so link-looking code remains inert."""
+    runs = [(match.start(), match.end(), len(match.group(0))) for match in re.finditer(r"`+", text)]
+    positions = {}
+    for start, _end, length in runs:
+        positions.setdefault(length, []).append(start)
+    ranges = []
+    run_index = 0
+    while run_index < len(runs):
+        start, _end, length = runs[run_index]
+        candidates = positions[length]
+        position = bisect.bisect_right(candidates, start)
+        if position >= len(candidates):
+            run_index += 1
+            continue
+        close_start = candidates[position]
+        close_end = close_start + length
+        ranges.append((start, close_end))
+        while run_index < len(runs) and runs[run_index][0] < close_end:
+            run_index += 1
+    return ranges
 
-    This small scanner supports balanced and escaped parentheses, angle-bracket
-    destinations, fragments, and optional titles. It deliberately does not try
-    to implement reference-style links because they have no inline destination.
-    """
+
+def _link_close(text, index):
+    quote = None
+    escaped = False
+    while index < len(text):
+        char = text[index]
+        if escaped:
+            escaped = False
+        elif char == "\\" and index + 1 < len(text) and text[index + 1] in ASCII_PUNCTUATION:
+            escaped = True
+        elif quote:
+            if char == quote:
+                quote = None
+        elif char in {'"', "'"}:
+            quote = char
+        elif char == ")":
+            return index
+        index += 1
+    return None
+
+
+def _inline_link_destination(text, index):
+    while index < len(text) and text[index].isspace():
+        index += 1
+    if index >= len(text):
+        return None, index
+
+    if text[index] == "<":
+        end = index + 1
+        while end < len(text) and text[end] != ">":
+            end += 1
+        if end >= len(text):
+            return None, len(text)
+        close = _link_close(text, end + 1)
+        return (text[index + 1:end], close + 1) if close is not None else (None, len(text))
+
+    value = []
+    depth = 0
+    while index < len(text):
+        char = text[index]
+        if char == "\\":
+            if index + 1 < len(text) and text[index + 1] in ASCII_PUNCTUATION:
+                value.append(text[index + 1])
+                index += 2
+                continue
+            value.append(char)
+        elif char == "(":
+            depth += 1
+            value.append(char)
+        elif char == ")":
+            if depth == 0:
+                return ("".join(value), index + 1) if value else (None, index + 1)
+            depth -= 1
+            value.append(char)
+        elif char.isspace() and depth == 0:
+            close = _link_close(text, index)
+            return ("".join(value), close + 1) if value and close is not None else (None, len(text))
+        else:
+            value.append(char)
+        index += 1
+    return None, len(text)
+
+
+def markdown_link_destinations(text):
+    """Return inline Markdown link destinations in one forward scan."""
     destinations = []
+    code_ranges = _code_span_ranges(text)
+    code_index = 0
     cursor = 0
     while cursor < len(text):
-        label_start = text.find("[", cursor)
-        if label_start < 0:
-            break
-        if label_start > 0 and text[label_start - 1] == "!":
-            cursor = label_start + 1
+        if code_index < len(code_ranges) and cursor >= code_ranges[code_index][0]:
+            cursor = code_ranges[code_index][1]
+            code_index += 1
             continue
-        label_end = label_start + 1
-        escaped = False
-        while label_end < len(text):
-            char = text[label_end]
-            if char == "]" and not escaped:
-                break
-            escaped = char == "\\" and not escaped
-            if char != "\\":
-                escaped = False
-            label_end += 1
-        if label_end >= len(text) or label_end + 1 >= len(text) or text[label_end + 1] != "(":
-            cursor = label_start + 1
+        if text[cursor] != "[":
+            cursor += 1
             continue
 
-        index = label_end + 2
-        while index < len(text) and text[index].isspace():
-            index += 1
-        if index < len(text) and text[index] == "<":
-            end = index + 1
-            while end < len(text) and text[end] != ">":
-                end += 1
-            if end < len(text):
-                destinations.append(text[index + 1:end])
-                cursor = end + 1
-                continue
-
-        value = []
-        depth = 0
-        escaped = False
-        while index < len(text):
+        is_image = cursor > 0 and text[cursor - 1] == "!"
+        label_depth = 1
+        index = cursor + 1
+        while index < len(text) and label_depth:
             char = text[index]
-            if escaped:
-                value.append(char)
-                escaped = False
-            elif char == "\\":
-                escaped = True
-            elif char == "(":
-                depth += 1
-                value.append(char)
-            elif char == ")":
-                if depth == 0:
-                    break
-                depth -= 1
-                value.append(char)
-            elif char.isspace() and depth == 0:
-                break
-            else:
-                value.append(char)
+            if char == "\\" and index + 1 < len(text) and text[index + 1] in ASCII_PUNCTUATION:
+                index += 2
+                continue
+            if char == "[":
+                label_depth += 1
+            elif char == "]":
+                label_depth -= 1
             index += 1
-        if value:
-            destinations.append("".join(value))
-        cursor = max(index + 1, label_start + 1)
+        if label_depth:
+            break
+        if index >= len(text) or text[index] != "(":
+            cursor = index
+            continue
+        destination, cursor = _inline_link_destination(text, index + 1)
+        if destination is not None and not is_image:
+            destinations.append(destination)
     return destinations
 
 

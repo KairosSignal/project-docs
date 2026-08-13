@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -278,6 +279,44 @@ class ParserAndStructureTests(RepoCase):
         report = load_module().Project.load(self.root).check()
 
         self.assertNotIn("BROKEN_LINK", {issue.code for issue in report.blocking_errors})
+
+    def test_nested_link_label_still_checks_destination(self):
+        self.basic()
+        child = self.read_meta("docs/child.md")
+        self.write_meta("docs/child.md", child, body="[outer [inner]](missing.md)")
+
+        report = load_module().Project.load(self.root).check()
+
+        self.assertIn("BROKEN_LINK", {issue.code for issue in report.blocking_errors})
+
+    def test_link_like_text_in_code_span_and_title_is_ignored(self):
+        self.basic()
+        self.write("docs/a.md", "# Destination\n")
+        child = self.read_meta("docs/child.md")
+        body = '`[not a link](missing.md)`\n[real](a.md "[also not](missing.md)")'
+        self.write_meta("docs/child.md", child, body=body)
+
+        report = load_module().Project.load(self.root).check()
+
+        self.assertNotIn("BROKEN_LINK", {issue.code for issue in report.blocking_errors})
+
+    def test_non_punctuation_backslash_is_not_decoded_away(self):
+        self.basic()
+        self.write("docs/docschild.md", "# Decoy\n")
+        child = self.read_meta("docs/child.md")
+        self.write_meta("docs/child.md", child, body="[escape](docs\\child.md)")
+
+        report = load_module().Project.load(self.root).check()
+
+        self.assertIn("PATH_OUTSIDE_PROJECT", {issue.code for issue in report.blocking_errors})
+
+    def test_unclosed_labels_are_scanned_in_linear_time(self):
+        scanner = load_module().markdown_link_destinations
+        started = time.monotonic()
+
+        self.assertEqual([], scanner("[" * 8000))
+
+        self.assertLess(time.monotonic() - started, 1.5)
 
 
 class LockAndImpactTests(RepoCase):

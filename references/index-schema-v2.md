@@ -51,6 +51,10 @@ When present, `read_when` has exactly this shape:
 allowed. These phrases guide an agent's semantic routing; the CLI validates
 their shape but does not infer task meaning from them.
 
+`0.1.0` is the first tagged public contract for this field. Projects created
+from earlier untagged snapshots that used another object shape must migrate to
+`{"any": [...]}` before adopting `0.1.0`.
+
 Use exact `authority_key` equality as a blocking conflict between active docs.
 Use shared suffix segments only for the non-blocking
 `NEAR_DUPLICATE_AUTHORITY_KEY` warning.
