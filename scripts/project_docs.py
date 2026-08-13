@@ -26,7 +26,7 @@ from urllib.parse import urlsplit
 
 
 SCHEMA_VERSION = 2
-TOOL_VERSION = "0.1.0"
+TOOL_VERSION = "0.1.1"
 ASCII_PUNCTUATION = frozenset(r"!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~")
 ROLES = {
     "project_entry", "module_index", "submodule_index", "status", "task_board",
@@ -43,6 +43,7 @@ HEX_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 MAX_MARKDOWN_BYTES = 16 * 1024 * 1024
 MAX_LOCK_BYTES = 16 * 1024 * 1024
 MAX_CONFIG_BYTES = 1024 * 1024
+MAX_GUARD_BYTES = 4096
 HASH_CHUNK_BYTES = 1024 * 1024
 GUARD_STALE_SECONDS = 300
 FILE_SAFETY_CODES = {"PATH_OUTSIDE_PROJECT", "SYMLINK_NOT_ALLOWED", "NON_REGULAR_FILE", "FILE_TOO_LARGE", "UNSAFE_FILE"}
@@ -438,6 +439,22 @@ class Project:
         if len(data) > max_bytes:
             raise ValueError(f"FILE_TOO_LARGE: {path} (> {max_bytes})")
         return resolved, data
+
+    def _release_guard(self, guard_path, guard_fd, guard_token):
+        """Release only the guard instance owned by this verify call."""
+        if guard_fd is None:
+            return
+        os.close(guard_fd)
+        try:
+            _resolved, current_token = self._read_file_bytes(guard_path, MAX_GUARD_BYTES)
+        except (OSError, ValueError):
+            return
+        if current_token != guard_token:
+            return
+        try:
+            guard_path.unlink()
+        except FileNotFoundError:
+            pass
 
     def _safe_markdown_entries(self, report):
         for path in self._markdown_files():
@@ -1264,11 +1281,28 @@ class Project:
         fd, tmp_name = tempfile.mkstemp(prefix=".project-docs-lock-", dir=lock_path.parent)
         guard_path = lock_path.with_name(lock_path.name + ".guard")
         guard_fd = None
+        guard_token = None
         try:
             with os.fdopen(fd, "wb") as handle:
                 handle.write(payload); handle.flush(); os.fsync(handle.fileno())
+            guard_token = f"{os.getpid()}:{time.time_ns()}:{os.urandom(16).hex()}".encode("ascii")
+
+            def acquire_guard():
+                acquired_fd = os.open(guard_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+                try:
+                    os.write(acquired_fd, guard_token)
+                    os.fsync(acquired_fd)
+                except Exception:
+                    os.close(acquired_fd)
+                    try:
+                        guard_path.unlink()
+                    except FileNotFoundError:
+                        pass
+                    raise
+                return acquired_fd
+
             try:
-                guard_fd = os.open(guard_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+                guard_fd = acquire_guard()
             except FileExistsError as exc:
                 try:
                     guard_age = time.time() - guard_path.lstat().st_mtime
@@ -1281,7 +1315,7 @@ class Project:
                 except FileNotFoundError:
                     pass
                 try:
-                    guard_fd = os.open(guard_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+                    guard_fd = acquire_guard()
                 except FileExistsError as retry_exc:
                     raise ValueError("LOCK_CONCURRENT_MODIFICATION") from retry_exc
             current = self._read_file_bytes(lock_path, MAX_LOCK_BYTES)[1] if lock_path.exists() else b""
@@ -1289,12 +1323,7 @@ class Project:
                 raise ValueError("LOCK_CONCURRENT_MODIFICATION")
             os.replace(tmp_name, lock_path)
         finally:
-            if guard_fd is not None:
-                os.close(guard_fd)
-                try:
-                    guard_path.unlink()
-                except FileNotFoundError:
-                    pass
+            self._release_guard(guard_path, guard_fd, guard_token)
             if os.path.exists(tmp_name): os.unlink(tmp_name)
         self.lock, self.lock_bytes, self.lock_error = new_lock, payload, None
         return record

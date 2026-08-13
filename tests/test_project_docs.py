@@ -343,8 +343,8 @@ class LockAndImpactTests(RepoCase):
         project.verify("child", status_effect="initial")
         lock = json.loads((self.root / ".project-docs.lock.json").read_text(encoding="utf-8"))
 
-        self.assertEqual("0.1.0", payload["tool_version"])
-        self.assertEqual("0.1.0", lock["tool_version"])
+        self.assertEqual("0.1.1", payload["tool_version"])
+        self.assertEqual("0.1.1", lock["tool_version"])
 
     def test_unverified_then_verify_then_current(self):
         self.basic()
@@ -886,7 +886,7 @@ class CliRevisionTests(RepoCase):
         )
 
         self.assertEqual(0, result.returncode)
-        self.assertEqual("0.1.0", json.loads(result.stdout)["tool_version"])
+        self.assertEqual("0.1.1", json.loads(result.stdout)["tool_version"])
 
     def test_runnable_demo_exercises_current_and_stale_workflow(self):
         result = subprocess.run(
@@ -1107,6 +1107,19 @@ class FilesystemHardeningTests(RepoCase):
         guard.write_text("fresh", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "LOCK_CONCURRENT_MODIFICATION"):
             mod.Project.load(self.root).verify("root", status_effect="initial")
+
+    def test_guard_release_does_not_delete_another_owner(self):
+        self.basic()
+        mod = load_module()
+        project = mod.Project.load(self.root)
+        guard = self.root / ".project-docs.lock.json.guard"
+        guard.write_bytes(b"replacement-owner")
+        fd = os.open(guard, os.O_WRONLY)
+
+        project._release_guard(guard, fd, b"original-owner")
+
+        self.assertTrue(guard.exists())
+        self.assertEqual(b"replacement-owner", guard.read_bytes())
 
 
 if __name__ == "__main__":
