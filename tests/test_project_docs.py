@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import stat
 import subprocess
 import sys
 import tempfile
@@ -26,6 +27,16 @@ def load_module():
 
 def index_doc(meta: dict, body: str = "Current summary.\n") -> str:
     return "# Doc\n\n" + body + "\n```project-docs-index\n" + json.dumps(meta) + "\n```\n"
+
+
+def remove_readonly_tree(path):
+    import shutil
+
+    def make_writable(function, target, _error):
+        os.chmod(target, stat.S_IWRITE)
+        function(target)
+
+    shutil.rmtree(path, onerror=make_writable)
 
 
 class RepoCase(unittest.TestCase):
@@ -779,9 +790,11 @@ class LockAndImpactRevisionTests(RepoCase):
         self.assertEqual(len(lock["documents"]), successes, outcomes)
 
     def test_committed_lock_is_consistent_across_clones(self):
-        import shutil
-
         self.basic()
+        # Newly created Windows files may retain CRLF in the worktree even
+        # after Git stages canonical LF. Re-check out the committed index so
+        # source and clone begin from the same .gitattributes contract.
+        subprocess.run(["git", "checkout-index", "--force", "--all"], cwd=self.root, check=True)
         mod = load_module()
         project = mod.Project.load(self.root)
         project.verify("child", status_effect="initial")
@@ -796,7 +809,7 @@ class LockAndImpactRevisionTests(RepoCase):
             self.assertEqual(source_states, clone_states)
             self.assertEqual(source_states, {"root": "CURRENT", "child": "CURRENT"})
         finally:
-            shutil.rmtree(clone.parent)
+            remove_readonly_tree(clone.parent)
 
     def test_check_includes_propagated_review_required(self):
         self.basic()
