@@ -10,6 +10,7 @@ from pathlib import Path
 
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "project_docs.py"
+README = Path(__file__).parents[1] / "README.md"
 
 
 def load_module():
@@ -75,6 +76,15 @@ class RepoCase(unittest.TestCase):
 
 
 class ParserAndStructureTests(RepoCase):
+    def test_readme_minimal_index_matches_real_schema(self):
+        text = README.read_text(encoding="utf-8")
+        section = text.split("## Minimal Index", 1)[1].split("## Recommended Workflow", 1)[0]
+        payload = section.split("```project-docs-index\n", 1)[1].split("\n```", 1)[0]
+
+        issues = load_module()._index_issues(json.loads(payload), "README-example.md")
+
+        self.assertEqual([], [issue.as_dict() for issue in issues])
+
     def test_index_example_inside_longer_fence_is_not_managed_document(self):
         self.basic()
         self.write("docs/schema-example.md", "# Example\n\n````markdown\n```project-docs-index\n{}\n```\n````\n")

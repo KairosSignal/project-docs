@@ -101,6 +101,15 @@ validation, archive isolation, project-map creation, and task/report sprawl.
 
 ## CLI
 
+Requirements:
+
+- Python 3.9 or newer
+- Git 2.25 or newer for commit-aware verification
+- Linux, macOS, or Windows
+
+Git is optional only in explicit hash-only mode. Without Git, `verify` requires
+`--allow-hash-only` and reports reduced assurance.
+
 Run the CLI directly from the skill directory:
 
 ```bash
@@ -135,7 +144,10 @@ strict JSON. A minimal L0 entry looks like this:
     "docs/current/status.md",
     "docs/current/task-board.md"
   ],
-  "startup_budget": 12000,
+  "startup_budget": {
+    "max_files": 5,
+    "max_characters": 12000
+  },
   "archive_roots": [
     "docs/archive"
   ]
