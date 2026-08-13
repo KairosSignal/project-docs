@@ -425,6 +425,7 @@ class Project:
             if not isinstance(meta, dict):
                 continue
             doc = Document(path, rel, meta, raw)
+            doc.content_sha256 = self._file_sha256(path, raw)
             self.document_list.append(doc)
             if doc.id and doc.id not in self.documents:
                 self.documents[doc.id] = doc
@@ -524,6 +525,25 @@ class Project:
         rel = PurePosixPath(rel)
         return any(rel == PurePosixPath(root) or PurePosixPath(root) in rel.parents for root in roots)
 
+    def _file_sha256(self, path, data=None):
+        """Hash content using the repository's explicit LF policy when declared.
+
+        A freshly created Windows worktree file may still contain CRLF even
+        though Git has staged canonical LF bytes. When .gitattributes declares
+        ``eol=lf``, hash the LF-equivalent bytes so verified locks remain stable
+        across clones. Files without that explicit policy keep raw-byte hashes.
+        """
+        path = Path(path)
+        if data is None:
+            data = path.read_bytes()
+        rel = rel_posix(path, self.root)
+        if self.git_root:
+            attr = run_git(self.root, "check-attr", "-z", "eol", "--", rel)
+            fields = attr.stdout.split("\0") if attr.returncode == 0 else []
+            if len(fields) >= 3 and fields[1] == "eol" and fields[2] == "lf":
+                data = data.replace(b"\r\n", b"\n")
+        return sha256_bytes(data)
+
     def _validate_relpath(self, value):
         if (
             not isinstance(value, str)
@@ -535,8 +555,17 @@ class Project:
             or ".." in PurePosixPath(value).parts
         ):
             return False
+
+        # Glob patterns are syntax, not concrete filesystem paths. Resolve only
+        # their literal prefix; concrete matches are containment-checked again
+        # in _resolved_pattern before any matched file is read.
+        static_parts = []
+        for part in PurePosixPath(value).parts:
+            if any(char in part for char in "*?["):
+                break
+            static_parts.append(part)
         try:
-            target = (self.root / value).resolve()
+            target = self.root.joinpath(*static_parts).resolve()
             target.relative_to(self.root)
         except (OSError, ValueError):
             return False
@@ -611,7 +640,7 @@ class Project:
                 resolved.relative_to(self.root)
             except ValueError:
                 raise ValueError(f"PATH_OUTSIDE_PROJECT: {pattern}")
-            values.append({"path": rel_posix(resolved, self.root), "sha256": sha256_bytes(resolved.read_bytes())})
+            values.append({"path": rel_posix(resolved, self.root), "sha256": self._file_sha256(resolved)})
         return values
 
     def _snapshot(self, doc):
