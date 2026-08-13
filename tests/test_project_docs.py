@@ -148,7 +148,10 @@ class ParserAndStructureTests(RepoCase):
         outside = Path(self.tmp.name).parent / f"outside-{self.root.name}.txt"
         outside.write_text("outside\n", encoding="utf-8")
         try:
-            (self.root / "outside-link.txt").symlink_to(outside)
+            try:
+                (self.root / "outside-link.txt").symlink_to(outside)
+            except (OSError, NotImplementedError) as exc:
+                self.skipTest(f"symlink creation unavailable: {exc}")
             child = self.read_meta("docs/child.md")
             child["watch_paths"] = ["outside-link.txt"]
             self.write_meta("docs/child.md", child)
@@ -540,7 +543,10 @@ class AdversarialSchemaTests(RepoCase):
             "level": 1, "role": "contract", "lifecycle_status": "active",
         }), encoding="utf-8")
         try:
-            (self.root / "outside.md").symlink_to(outside)
+            try:
+                (self.root / "outside.md").symlink_to(outside)
+            except (OSError, NotImplementedError) as exc:
+                self.skipTest(f"symlink creation unavailable: {exc}")
 
             result = self.run_cli("check", str(self.root), "--format", "json")
 
