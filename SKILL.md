@@ -1,9 +1,9 @@
 ---
-name: project-docs
+name: driftlock
 description: Govern documentation in small through large multi-agent projects using progressive L0/L1/L2 indexes, deterministic freshness checks, dependency propagation, context budgets, and archive isolation. Use when creating, auditing, reorganizing, validating, compacting, or archiving project docs; detecting stale status or contract files after code changes; establishing a project map; or controlling docs/workroom/task/report sprawl.
 ---
 
-# Project Docs
+# Driftlock
 
 Keep current knowledge small and navigable while preserving history outside the
 default AI context. Upgrade the existing project structure in place; never
@@ -28,11 +28,11 @@ the standard-library CLI from that absolute skill root, not from the target
 project's current working directory:
 
 ```bash
-python3 <skill-root>/scripts/project_docs.py discover <project-root>
-python3 <skill-root>/scripts/project_docs.py check <project-root>
-python3 <skill-root>/scripts/project_docs.py impact <project-root> [--since COMMIT]
-python3 <skill-root>/scripts/project_docs.py verify <project-root> --doc DOC_ID --status-effect initial|changed|unchanged
-python3 <skill-root>/scripts/project_docs.py archive-plan <project-root>
+python3 <skill-root>/scripts/driftlock.py discover <project-root>
+python3 <skill-root>/scripts/driftlock.py check <project-root>
+python3 <skill-root>/scripts/driftlock.py impact <project-root> [--since COMMIT]
+python3 <skill-root>/scripts/driftlock.py verify <project-root> --doc DOC_ID --status-effect initial|changed|unchanged
+python3 <skill-root>/scripts/driftlock.py archive-plan <project-root>
 ```
 
 Use `--format json` for agents and automation.
@@ -47,6 +47,10 @@ Use `--format json` for agents and automation.
   reduced assurance.
 - Treat malformed index or lock input as structured errors. A read-only command
   must never emit a Python traceback for user-controlled project metadata.
+
+The compatibility implementation remains at `scripts/project_docs.py` and the
+protocol identifiers `.project-docs.lock.json` and `project-docs-index` remain
+stable. They identify the existing format, not the target project's name.
 
 ## Freshness And Propagation
 
