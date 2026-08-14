@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="540" viewBox="0 0 1000 540" role="img" aria-label="Driftlock terminal demo showing a code change marking only affected documentation stale or review required">
+  <style>
+    .bg { fill: #0d1117; }
+    .panel { fill: #161b22; stroke: #30363d; stroke-width: 2; }
+    .rule { stroke: #30363d; stroke-width: 2; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+    .title { fill: #f0f6fc; font-size: 24px; font-weight: 700; }
+    .text { fill: #e6edf3; font-size: 21px; }
+    .small { fill: #8b949e; font-size: 18px; }
+    .bold { fill: #f0f6fc; font-size: 21px; font-weight: 700; }
+    .blue { fill: #58a6ff; }
+    .green { fill: #3fb950; }
+    .yellow { fill: #d29922; }
+    .red { fill: #f85149; }
+  </style>
+
+  <rect class="bg" width="1000" height="540"/>
+  <rect class="panel" x="32" y="32" width="936" height="476" rx="18"/>
+  <line class="rule" x1="32" y1="84" x2="968" y2="84"/>
+  <circle cx="62" cy="58" r="7" fill="#ff5f56"/>
+  <circle cx="90" cy="58" r="7" fill="#ffbd2e"/>
+  <circle cx="118" cy="58" r="7" fill="#27c93f"/>
+  <text class="mono title" x="160" y="67">Driftlock — demo</text>
+
+  <g class="mono">
+    <animate attributeName="opacity" dur="14s" repeatCount="indefinite" calcMode="discrete" values="1;0;0;0;0" keyTimes="0;0.2;0.4;0.6;0.8"/>
+    <text class="text blue" x="70" y="132">$ python3 examples/run_demo.py</text>
+    <text class="small" x="70" y="188">Verify project documentation...</text>
+    <text class="text" x="70" y="254">auth-contract</text><text class="bold green" x="710" y="254">CURRENT</text>
+    <text class="text" x="70" y="296">backend-index</text><text class="bold green" x="710" y="296">CURRENT</text>
+    <text class="text" x="70" y="338">project-entry</text><text class="bold green" x="710" y="338">CURRENT</text>
+    <text class="text" x="70" y="380">billing-contract</text><text class="bold green" x="710" y="380">CURRENT</text>
+    <text class="small green" x="70" y="450">All 4 documents are CURRENT.</text>
+  </g>
+
+  <g class="mono" opacity="0">
+    <animate attributeName="opacity" dur="14s" repeatCount="indefinite" calcMode="discrete" values="0;1;0;0;0" keyTimes="0;0.2;0.4;0.6;0.8"/>
+    <text class="text blue" x="70" y="132">$ echo '# Contract change' &gt;&gt; src/auth/session.py</text>
+    <text class="bold" x="70" y="205">Source code changed:</text>
+    <text class="text yellow" x="70" y="252">src/auth/session.py</text>
+    <text class="small" x="70" y="330">Driftlock checks declared watch paths</text>
+    <text class="small" x="70" y="370">and propagates impact through documentation dependencies...</text>
+  </g>
+
+  <g class="mono" opacity="0">
+    <animate attributeName="opacity" dur="14s" repeatCount="indefinite" calcMode="discrete" values="0;0;1;0;0" keyTimes="0;0.2;0.4;0.6;0.8"/>
+    <text class="text blue" x="70" y="132">$ python3 scripts/driftlock.py impact .</text>
+    <text class="text" x="70" y="208">watch path hit:</text>
+    <text class="bold yellow" x="285" y="208">src/auth/session.py</text>
+    <text class="text" x="70" y="275">dependency chain:</text>
+    <text class="bold" x="310" y="275">auth → backend → project</text>
+    <text class="small" x="70" y="360">Computing the minimum documentation update queue...</text>
+  </g>
+
+  <g class="mono" opacity="0">
+    <animate attributeName="opacity" dur="14s" repeatCount="indefinite" calcMode="discrete" values="0;0;0;1;0" keyTimes="0;0.2;0.4;0.6;0.8"/>
+    <text class="title" x="70" y="132">Impact report</text>
+    <text class="text" x="70" y="198">auth-contract</text><text class="bold red" x="670" y="198">STALE</text>
+    <text class="text" x="70" y="242">backend-index</text><text class="bold yellow" x="670" y="242">REVIEW_REQUIRED</text>
+    <text class="text" x="70" y="286">project-entry</text><text class="bold yellow" x="670" y="286">REVIEW_REQUIRED</text>
+    <text class="text" x="70" y="330">billing-contract</text><text class="bold green" x="670" y="330">CURRENT</text>
+    <line class="rule" x1="70" y1="382" x2="930" y2="382"/>
+    <text class="bold" x="70" y="426">3 docs need review</text>
+    <text class="small green" x="70" y="466">Unrelated billing stays out of the update queue.</text>
+  </g>
+
+  <g class="mono" opacity="0">
+    <animate attributeName="opacity" dur="14s" repeatCount="indefinite" calcMode="discrete" values="0;0;0;0;1" keyTimes="0;0.2;0.4;0.6;0.8"/>
+    <text class="title" x="70" y="160">Your code changed.</text>
+    <text class="title blue" x="70" y="218">Which docs can your AI agent still trust?</text>
+    <text class="bold" x="70" y="315">Driftlock answers deterministically.</text>
+    <text class="small" x="70" y="372">CURRENT  •  STALE  •  REVIEW_REQUIRED  •  UNVERIFIED</text>
+    <text class="small green" x="70" y="450">github.com/KairosSignal/project-docs</text>
+  </g>
+</svg>
