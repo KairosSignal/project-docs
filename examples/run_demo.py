@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the Project Docs happy path and one intentional stale transition."""
+"""Run the Driftlock happy path and one intentional stale transition."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
-CLI = REPOSITORY / "scripts" / "project_docs.py"
+CLI = REPOSITORY / "scripts" / "driftlock.py"
 FIXTURE = Path(__file__).resolve().parent / "demo-project"
 
 
@@ -40,7 +40,7 @@ def main():
         shutil.copytree(FIXTURE, project)
         git(project, "init", "-q")
         git(project, "config", "user.email", "demo@example.com")
-        git(project, "config", "user.name", "Project Docs Demo")
+        git(project, "config", "user.name", "Driftlock Demo")
         git(project, "add", ".")
         git(project, "commit", "-qm", "initial demo")
 
