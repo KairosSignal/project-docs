@@ -10,6 +10,14 @@ agents through layered indexes, detects stale contracts after code changes,
 propagates review requirements through declared dependencies, and keeps
 archives outside the default context.
 
+## See It in 14 Seconds
+
+![Project Docs animated terminal demo](assets/project-docs-demo.svg)
+
+A change to `src/auth/session.py` makes the authentication contract `STALE` and
+propagates `REVIEW_REQUIRED` only through its declared summary chain. The
+unrelated billing contract stays `CURRENT` and out of the update queue.
+
 ## Why
 
 Long-running projects often accumulate multiple status files, duplicated
@@ -129,7 +137,7 @@ Add `--format json` for automation.
 only writing command, and it writes only `.project-docs.lock.json` atomically.
 
 CLI JSON reports and generated lock files include `tool_version`. The current
-release line is `0.1.0`.
+release line is `0.1.1`.
 
 ## Runnable Demo
 
