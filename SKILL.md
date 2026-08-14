@@ -48,10 +48,6 @@ Use `--format json` for agents and automation.
 - Treat malformed index or lock input as structured errors. A read-only command
   must never emit a Python traceback for user-controlled project metadata.
 
-The compatibility implementation remains at `scripts/driftlock.py` and the
-protocol identifiers `.driftlock.lock.json` and `driftlock-index` remain
-stable. They identify the existing format, not the target project's name.
-
 ## Freshness And Propagation
 
 Treat lifecycle (`active`, `superseded`, `archived`) as authored metadata.
