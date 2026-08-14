@@ -1,7 +1,7 @@
 interface:
-  display_name: "Project Docs"
-  short_description: "Validate layered docs, freshness, and archives."
-  default_prompt: "Use $project-docs to find this project's current documentation branch, check freshness, and report the minimum required updates without reading archives by default."
+  display_name: "Driftlock"
+  short_description: "Detect documentation drift and propagate review impact."
+  default_prompt: "Use $driftlock to find this project's current documentation branch, check freshness, and report the minimum required updates without reading archives by default."
 
 policy:
   allow_implicit_invocation: true
