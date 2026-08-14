@@ -1,4 +1,4 @@
-# Project Docs Index Schema v2
+# Driftlock Index Schema v2
 
 ## Contents
 
