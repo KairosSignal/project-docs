@@ -1,18 +1,17 @@
-# Project Docs
+# Driftlock
 
 [![Tests](https://github.com/KairosSignal/project-docs/actions/workflows/test.yml/badge.svg)](https://github.com/KairosSignal/project-docs/actions/workflows/test.yml)
 
-Project Docs is an agent skill and a dependency-free Python CLI for keeping
-project documentation small, current, and safe for AI-assisted development.
+Driftlock is an agent skill and a dependency-free Python CLI for keeping
+project documentation aligned with code as a repository changes.
 
-It gives a repository one authoritative documentation entry point, routes
-agents through layered indexes, detects stale contracts after code changes,
-propagates review requirements through declared dependencies, and keeps
+It detects documentation drift deterministically, propagates review impact
+through declared dependencies, routes agents through layered indexes, and keeps
 archives outside the default context.
 
 ## See It in 14 Seconds
 
-![Project Docs animated terminal demo](assets/project-docs-demo.svg)
+![Driftlock animated terminal demo](assets/driftlock-demo.svg)
 
 A change to `src/auth/session.py` makes the authentication contract `STALE` and
 propagates `REVIEW_REQUIRED` only through its declared summary chain. The
@@ -25,7 +24,7 @@ architecture notes, stale handoffs, and large archives. An AI agent can then
 read the wrong document, repeat completed work, or spend most of its context on
 history.
 
-Project Docs makes freshness deterministic. Markdown documents declare their
+Driftlock makes freshness deterministic. Markdown documents declare their
 identity and relationships in a small JSON index block. The CLI records reviewed
 content hashes in `.project-docs.lock.json` and reports computed states:
 
@@ -37,7 +36,7 @@ content hashes in `.project-docs.lock.json` and reports computed states:
 ## Features
 
 - Progressive L0/L1/L2 documentation indexes
-- One authoritative project entry document
+- One project entry point for agent routing
 - SHA-256 freshness checks for documents and watched code paths
 - Dependency propagation for summaries, status, and contracts
 - Git-aware verification with dirty-path protection
@@ -48,12 +47,12 @@ content hashes in `.project-docs.lock.json` and reports computed states:
 
 ## Agent Compatibility
 
-Project Docs is not tied to one model or coding agent:
+Driftlock is not tied to one model or coding agent:
 
 - Any agent with shell access can run the Python CLI.
 - Agents that support `SKILL.md` packages can load the repository as a skill.
 - Agents without a skill system can use `SKILL.md` as project instructions and
-  call `scripts/project_docs.py` directly.
+  call `scripts/driftlock.py` directly.
 - Humans and CI can use the same CLI without an agent.
 
 `agents/openai.yaml` provides optional OpenAI/Codex interface metadata. The core
@@ -68,22 +67,23 @@ agent:
 git clone https://github.com/KairosSignal/project-docs.git
 ```
 
-Then either register the cloned directory as an agent skill or run the CLI from
-it. Consult your agent's documentation for its skill discovery directory.
+Then either register the cloned directory as the `driftlock` skill or run the
+CLI from it. Consult your agent's documentation for its skill discovery
+directory.
 
 ### Codex
 
 Ask Codex to install the public skill:
 
 ```text
-Install the project-docs skill from https://github.com/KairosSignal/project-docs
+Install the Driftlock skill from https://github.com/KairosSignal/project-docs
 ```
 
 Or clone it into the Codex skills directory:
 
 ```bash
 git clone https://github.com/KairosSignal/project-docs.git \
-  ~/.codex/skills/project-docs
+  ~/.codex/skills/driftlock
 ```
 
 Restart Codex after installation so the skill is discovered.
@@ -93,8 +93,8 @@ Restart Codex after installation so the skill is discovered.
 For any agent, ask it to read `SKILL.md` and use the bundled CLI:
 
 ```text
-Read the project-docs SKILL.md, audit this repository's documentation, and
-report the minimum updates needed. Do not read archives unless required.
+Read the Driftlock SKILL.md, audit this repository's documentation, and report
+the minimum updates needed. Do not read archives unless required.
 ```
 
 ### Codex
@@ -102,8 +102,8 @@ report the minimum updates needed. Do not read archives unless required.
 Invoke the skill explicitly:
 
 ```text
-Use $project-docs to audit this repository's documentation and report the
-minimum updates needed. Do not read archives unless required.
+Use $driftlock to audit this repository's documentation and report the minimum
+updates needed. Do not read archives unless required.
 ```
 
 The skill also triggers for documentation audits, reorganization, freshness
@@ -123,12 +123,12 @@ Git is optional only in explicit hash-only mode. Without Git, `verify` requires
 Run the CLI directly from the skill directory:
 
 ```bash
-python3 scripts/project_docs.py discover /path/to/project
-python3 scripts/project_docs.py check /path/to/project
-python3 scripts/project_docs.py impact /path/to/project --since HEAD~1
-python3 scripts/project_docs.py verify /path/to/project \
+python3 scripts/driftlock.py discover /path/to/project
+python3 scripts/driftlock.py check /path/to/project
+python3 scripts/driftlock.py impact /path/to/project --since HEAD~1
+python3 scripts/driftlock.py verify /path/to/project \
   --doc project-entry --status-effect initial
-python3 scripts/project_docs.py archive-plan /path/to/project
+python3 scripts/driftlock.py archive-plan /path/to/project
 ```
 
 Add `--format json` for automation.
@@ -138,6 +138,20 @@ only writing command, and it writes only `.project-docs.lock.json` atomically.
 
 CLI JSON reports and generated lock files include `tool_version`. The current
 release line is `0.1.1`.
+
+## Protocol Compatibility
+
+The product name is **Driftlock**. Existing protocol identifiers stay stable so
+repositories and integrations do not need a destructive rename:
+
+- `.project-docs.lock.json` remains the lock file.
+- `project-docs-index` remains the Markdown index fence.
+- `scripts/project_docs.py` remains the compatibility implementation path.
+- New integrations should use `scripts/driftlock.py` and the `$driftlock` skill.
+
+These names identify a file format and compatibility surface; they are not the
+name of the project being analyzed. The target project is always supplied at
+runtime through `project_root`.
 
 ## Runnable Demo
 
@@ -194,7 +208,7 @@ candidates without inventing authority or moving files.
 5. Commit `.project-docs.lock.json` with the reviewed documents.
 6. Run `check` in agent workflows or CI.
 
-Project Docs never automatically rewrites semantic content, assigns authority,
+Driftlock never automatically rewrites semantic content, assigns authority,
 moves documents, or deletes archives. Those remain explicit human or agent
 decisions.
 
