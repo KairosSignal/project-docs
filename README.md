@@ -1,6 +1,6 @@
 # Driftlock
 
-[![Tests](https://github.com/KairosSignal/project-docs/actions/workflows/test.yml/badge.svg)](https://github.com/KairosSignal/project-docs/actions/workflows/test.yml)
+[![Tests](https://github.com/KairosSignal/driftlock/actions/workflows/test.yml/badge.svg)](https://github.com/KairosSignal/driftlock/actions/workflows/test.yml)
 
 Driftlock is an agent skill and a dependency-free Python CLI for keeping
 project documentation aligned with code as a repository changes.
@@ -64,7 +64,7 @@ Clone the repository into the skill or instruction directory used by your
 agent:
 
 ```bash
-git clone https://github.com/KairosSignal/project-docs.git
+git clone https://github.com/KairosSignal/driftlock.git
 ```
 
 Then either register the cloned directory as the `driftlock` skill or run the
@@ -76,13 +76,13 @@ directory.
 Ask Codex to install the public skill:
 
 ```text
-Install the Driftlock skill from https://github.com/KairosSignal/project-docs
+Install the Driftlock skill from https://github.com/KairosSignal/driftlock
 ```
 
 Or clone it into the Codex skills directory:
 
 ```bash
-git clone https://github.com/KairosSignal/project-docs.git \
+git clone https://github.com/KairosSignal/driftlock.git \
   ~/.codex/skills/driftlock
 ```
 
