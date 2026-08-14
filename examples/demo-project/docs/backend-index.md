@@ -3,7 +3,7 @@
 - [Authentication contract](auth-contract.md)
 - [Billing contract](billing-contract.md)
 
-```project-docs-index
+```driftlock-index
 {
   "schema_version": 2,
   "id": "demo-backend-index",

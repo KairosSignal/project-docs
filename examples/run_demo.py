@@ -51,7 +51,7 @@ def main():
             "demo-project-entry",
         ):
             run(project, "verify", "--doc", doc_id, "--status-effect", "initial")
-        git(project, "add", ".project-docs.lock.json")
+        git(project, "add", ".driftlock.lock.json")
         git(project, "commit", "-qm", "verify documentation")
 
         current = run(project, "check")

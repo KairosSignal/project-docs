@@ -12,13 +12,13 @@ import unittest
 from pathlib import Path
 
 
-SCRIPT = Path(__file__).parents[1] / "scripts" / "project_docs.py"
+SCRIPT = Path(__file__).parents[1] / "scripts" / "driftlock.py"
 README = Path(__file__).parents[1] / "README.md"
 DEMO = Path(__file__).parents[1] / "examples" / "run_demo.py"
 
 
 def load_module():
-    spec = importlib.util.spec_from_file_location("project_docs", SCRIPT)
+    spec = importlib.util.spec_from_file_location("driftlock", SCRIPT)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader
     spec.loader.exec_module(module)
@@ -26,7 +26,7 @@ def load_module():
 
 
 def index_doc(meta: dict, body: str = "Current summary.\n") -> str:
-    return "# Doc\n\n" + body + "\n```project-docs-index\n" + json.dumps(meta) + "\n```\n"
+    return "# Doc\n\n" + body + "\n```driftlock-index\n" + json.dumps(meta) + "\n```\n"
 
 
 def remove_readonly_tree(path):
@@ -62,7 +62,7 @@ class RepoCase(unittest.TestCase):
 
     def read_meta(self, rel: str) -> dict:
         text = (self.root / rel).read_text(encoding="utf-8")
-        return json.loads(text.split("```project-docs-index\n", 1)[1].split("\n```", 1)[0])
+        return json.loads(text.split("```driftlock-index\n", 1)[1].split("\n```", 1)[0])
 
     def write_meta(self, rel: str, meta: dict, body: str = "Current summary.\n"):
         return self.write(rel, index_doc(meta, body=body))
@@ -93,7 +93,7 @@ class ParserAndStructureTests(RepoCase):
     def test_readme_minimal_index_matches_real_schema(self):
         text = README.read_text(encoding="utf-8")
         section = text.split("## Minimal Index", 1)[1].split("## Recommended Workflow", 1)[0]
-        payload = section.split("```project-docs-index\n", 1)[1].split("\n```", 1)[0]
+        payload = section.split("```driftlock-index\n", 1)[1].split("\n```", 1)[0]
 
         issues = load_module()._index_issues(json.loads(payload), "README-example.md")
 
@@ -101,7 +101,7 @@ class ParserAndStructureTests(RepoCase):
 
     def test_index_example_inside_longer_fence_is_not_managed_document(self):
         self.basic()
-        self.write("docs/schema-example.md", "# Example\n\n````markdown\n```project-docs-index\n{}\n```\n````\n")
+        self.write("docs/schema-example.md", "# Example\n\n````markdown\n```driftlock-index\n{}\n```\n````\n")
         project = load_module().Project.load(self.root)
         self.assertEqual(set(project.documents), {"root", "child"})
         self.assertEqual(len(project.document_list), 2)
@@ -176,7 +176,7 @@ class ParserAndStructureTests(RepoCase):
     def test_children_cycle_is_blocking(self):
         self.basic()
         child = self.root / "docs/child.md"
-        meta = json.loads(child.read_text().split("```project-docs-index\n", 1)[1].split("\n```", 1)[0])
+        meta = json.loads(child.read_text().split("```driftlock-index\n", 1)[1].split("\n```", 1)[0])
         meta["children"] = [{"id": "root", "path": "PROJECT_MAP.md", "propagation": "summary"}]
         child.write_text(index_doc(meta))
         report = load_module().Project.load(self.root).check()
@@ -193,7 +193,7 @@ class ParserAndStructureTests(RepoCase):
     def test_active_authoritative_role_requires_authority_key(self):
         self.basic()
         child = self.root / "docs/child.md"
-        meta = json.loads(child.read_text().split("```project-docs-index\n", 1)[1].split("\n```", 1)[0])
+        meta = json.loads(child.read_text().split("```driftlock-index\n", 1)[1].split("\n```", 1)[0])
         meta.pop("authority_key")
         child.write_text(index_doc(meta))
         report = load_module().Project.load(self.root).check()
@@ -202,7 +202,7 @@ class ParserAndStructureTests(RepoCase):
     def test_l1_budget_is_checked(self):
         self.basic()
         child = self.root / "docs/child.md"
-        meta = json.loads(child.read_text().split("```project-docs-index\n", 1)[1].split("\n```", 1)[0])
+        meta = json.loads(child.read_text().split("```driftlock-index\n", 1)[1].split("\n```", 1)[0])
         meta["startup_budget"] = {"max_files": 1, "max_characters": 1}
         child.write_text(index_doc(meta, body="long module summary"))
         report = load_module().Project.load(self.root).check()
@@ -216,7 +216,7 @@ class ParserAndStructureTests(RepoCase):
         }
         self.write("docs/archive/old.md", index_doc(archived))
         child = self.root / "docs/child.md"
-        meta = json.loads(child.read_text().split("```project-docs-index\n", 1)[1].split("\n```", 1)[0])
+        meta = json.loads(child.read_text().split("```driftlock-index\n", 1)[1].split("\n```", 1)[0])
         meta["depends_on"] = [{"id": "old", "propagation": "contract"}]
         child.write_text(index_doc(meta))
         report = load_module().Project.load(self.root).check()
@@ -225,7 +225,7 @@ class ParserAndStructureTests(RepoCase):
     def test_startup_budget_counts_duplicate_once(self):
         self.basic()
         root = self.root / "PROJECT_MAP.md"
-        meta = json.loads(root.read_text().split("```project-docs-index\n", 1)[1].split("\n```", 1)[0])
+        meta = json.loads(root.read_text().split("```driftlock-index\n", 1)[1].split("\n```", 1)[0])
         meta["startup"] = ["AGENTS.md", "AGENTS.md"]
         meta["startup_budget"] = {"max_files": 2, "max_characters": 10000}
         root.write_text(index_doc(meta))
@@ -341,10 +341,10 @@ class LockAndImpactTests(RepoCase):
 
         payload = mod.report_dict(project, project.check())
         project.verify("child", status_effect="initial")
-        lock = json.loads((self.root / ".project-docs.lock.json").read_text(encoding="utf-8"))
+        lock = json.loads((self.root / ".driftlock.lock.json").read_text(encoding="utf-8"))
 
-        self.assertEqual("0.1.1", payload["tool_version"])
-        self.assertEqual("0.1.1", lock["tool_version"])
+        self.assertEqual("0.2.0", payload["tool_version"])
+        self.assertEqual("0.2.0", lock["tool_version"])
 
     def test_unverified_then_verify_then_current(self):
         self.basic()
@@ -393,7 +393,7 @@ class LockAndImpactTests(RepoCase):
 
     def test_lock_corruption_is_blocking(self):
         self.basic()
-        self.write(".project-docs.lock.json", "not json")
+        self.write(".driftlock.lock.json", "not json")
         report = load_module().Project.load(self.root).check()
         self.assertIn("LOCK_CORRUPTED", {x.code for x in report.blocking_errors})
 
@@ -406,7 +406,7 @@ class LockAndImpactTests(RepoCase):
         }
         self.write("docs/consumer.md", index_doc(consumer))
         root = self.root / "PROJECT_MAP.md"
-        meta = json.loads(root.read_text().split("```project-docs-index\n", 1)[1].split("\n```", 1)[0])
+        meta = json.loads(root.read_text().split("```driftlock-index\n", 1)[1].split("\n```", 1)[0])
         meta["children"].append({"id": "consumer", "path": "docs/consumer.md", "propagation": "link_only"})
         root.write_text(index_doc(meta))
         self.commit()
@@ -509,7 +509,7 @@ class AdversarialSchemaTests(RepoCase):
 
     def test_non_object_index_and_relationship_values_are_reported(self):
         self.basic()
-        self.write("docs/not-object.md", "# Bad\n\n```project-docs-index\n[]\n```\n")
+        self.write("docs/not-object.md", "# Bad\n\n```driftlock-index\n[]\n```\n")
         meta = self.read_meta("PROJECT_MAP.md")
         meta["children"] = ["child"]
         self.write_meta("PROJECT_MAP.md", meta)
@@ -637,7 +637,7 @@ class ArchiveBoundaryRevisionTests(RepoCase):
 class LockAndImpactRevisionTests(RepoCase):
     def test_empty_lock_record_is_corrupted(self):
         self.basic()
-        self.write(".project-docs.lock.json", json.dumps({
+        self.write(".driftlock.lock.json", json.dumps({
             "schema_version": 2,
             "generated_at": "2026-07-18T00:00:00Z",
             "documents": {"child": {}},
@@ -651,7 +651,7 @@ class LockAndImpactRevisionTests(RepoCase):
         self.basic()
         mod = load_module()
         mod.Project.load(self.root).verify("child", status_effect="initial")
-        lock_path = self.root / ".project-docs.lock.json"
+        lock_path = self.root / ".driftlock.lock.json"
         lock = json.loads(lock_path.read_text(encoding="utf-8"))
         lock["documents"]["child"]["dependencies"].pop("children")
         lock_path.write_text(json.dumps(lock), encoding="utf-8")
@@ -683,7 +683,7 @@ class LockAndImpactRevisionTests(RepoCase):
         self.basic()
         mod = load_module()
         mod.Project.load(self.root).verify("child", status_effect="initial")
-        lock_path = self.root / ".project-docs.lock.json"
+        lock_path = self.root / ".driftlock.lock.json"
         lock = json.loads(lock_path.read_text(encoding="utf-8"))
         lock["documents"]["child"]["authority_key"] = "wrong.authority"
         lock_path.write_text(json.dumps(lock), encoding="utf-8")
@@ -695,7 +695,7 @@ class LockAndImpactRevisionTests(RepoCase):
 
     def test_impact_inherits_lock_and_structure_errors(self):
         self.basic()
-        self.write(".project-docs.lock.json", "not json")
+        self.write(".driftlock.lock.json", "not json")
 
         report = load_module().Project.load(self.root).impact()
 
@@ -717,7 +717,7 @@ class LockAndImpactRevisionTests(RepoCase):
         project.verify("child", status_effect="initial")
         project.verify("root", status_effect="initial")
         self.commit()
-        lock_path = self.root / ".project-docs.lock.json"
+        lock_path = self.root / ".driftlock.lock.json"
         lock = json.loads(lock_path.read_text(encoding="utf-8"))
         lock["documents"]["child"]["status_effect"] = "changed"
         lock["documents"]["child"]["status_effect_applicable"] = False
@@ -736,7 +736,7 @@ class LockAndImpactRevisionTests(RepoCase):
         project.verify("child", status_effect="initial")
         self.commit()
         project = mod.Project.load(self.root)
-        lock_path = self.root / ".project-docs.lock.json"
+        lock_path = self.root / ".driftlock.lock.json"
 
         def mutate_lock(_fd):
             lock_path.write_bytes(lock_path.read_bytes() + b" ")
@@ -784,7 +784,7 @@ class LockAndImpactRevisionTests(RepoCase):
         ]
         outcomes = [process.communicate() + (process.returncode,) for process in processes]
         successes = sum(returncode == 0 for _stdout, _stderr, returncode in outcomes)
-        lock = json.loads((self.root / ".project-docs.lock.json").read_text(encoding="utf-8"))
+        lock = json.loads((self.root / ".driftlock.lock.json").read_text(encoding="utf-8"))
 
         self.assertGreaterEqual(successes, 1)
         self.assertEqual(len(lock["documents"]), successes, outcomes)
@@ -886,7 +886,7 @@ class CliRevisionTests(RepoCase):
         )
 
         self.assertEqual(0, result.returncode)
-        self.assertEqual("0.1.1", json.loads(result.stdout)["tool_version"])
+        self.assertEqual("0.2.0", json.loads(result.stdout)["tool_version"])
 
     def test_runnable_demo_exercises_current_and_stale_workflow(self):
         result = subprocess.run(
@@ -1082,7 +1082,7 @@ class FilesystemHardeningTests(RepoCase):
     def test_oversized_lock_is_rejected_without_full_read(self):
         self.basic()
         mod = load_module()
-        lock_path = self.root / ".project-docs.lock.json"
+        lock_path = self.root / ".driftlock.lock.json"
         with lock_path.open("wb") as handle:
             handle.truncate(mod.MAX_LOCK_BYTES + 1)
 
@@ -1094,7 +1094,7 @@ class FilesystemHardeningTests(RepoCase):
     def test_stale_guard_is_recovered_but_fresh_guard_is_refused(self):
         self.basic()
         mod = load_module()
-        guard = self.root / ".project-docs.lock.json.guard"
+        guard = self.root / ".driftlock.lock.json.guard"
         guard.write_text("stale", encoding="utf-8")
         import time as _time
         old = _time.time() - mod.GUARD_STALE_SECONDS - 5
@@ -1112,7 +1112,7 @@ class FilesystemHardeningTests(RepoCase):
         self.basic()
         mod = load_module()
         project = mod.Project.load(self.root)
-        guard = self.root / ".project-docs.lock.json.guard"
+        guard = self.root / ".driftlock.lock.json.guard"
         guard.write_bytes(b"replacement-owner")
         fd = os.open(guard, os.O_WRONLY)
 

@@ -26,7 +26,7 @@ history.
 
 Driftlock makes freshness deterministic. Markdown documents declare their
 identity and relationships in a small JSON index block. The CLI records reviewed
-content hashes in `.project-docs.lock.json` and reports computed states:
+content hashes in `.driftlock.lock.json` and reports computed states:
 
 - `CURRENT`
 - `STALE`
@@ -134,24 +134,20 @@ python3 scripts/driftlock.py archive-plan /path/to/project
 Add `--format json` for automation.
 
 `discover`, `check`, `impact`, and `archive-plan` are read-only. `verify` is the
-only writing command, and it writes only `.project-docs.lock.json` atomically.
+only writing command, and it writes only `.driftlock.lock.json` atomically.
 
 CLI JSON reports and generated lock files include `tool_version`. The current
-release line is `0.1.1`.
+release line is `0.2.0`.
 
-## Protocol Compatibility
+## File Format
 
-The product name is **Driftlock**. Existing protocol identifiers stay stable so
-repositories and integrations do not need a destructive rename:
+Driftlock uses its own v0.2 format:
 
-- `.project-docs.lock.json` remains the lock file.
-- `project-docs-index` remains the Markdown index fence.
-- `scripts/project_docs.py` remains the compatibility implementation path.
-- New integrations should use `scripts/driftlock.py` and the `$driftlock` skill.
+- `.driftlock.lock.json` stores verified document state.
+- `driftlock-index` is the Markdown metadata fence.
+- `scripts/driftlock.py` is the only CLI implementation.
 
-These names identify a file format and compatibility surface; they are not the
-name of the project being analyzed. The target project is always supplied at
-runtime through `project_root`.
+The target repository is always selected at runtime with `project_root`; none of these identifiers are a target-project name.
 
 ## Runnable Demo
 
@@ -169,11 +165,11 @@ block.
 
 ## Minimal Index
 
-Every managed Markdown file contains one fenced `project-docs-index` block with
+Every managed Markdown file contains one fenced `driftlock-index` block with
 strict JSON. A minimal L0 entry looks like this:
 
 ````markdown
-```project-docs-index
+```driftlock-index
 {
   "schema_version": 2,
   "id": "project-entry",
@@ -205,7 +201,7 @@ candidates without inventing authority or moving files.
 2. Establish one L0 entry and narrow L1 branches.
 3. Add indexes and explicit dependency edges.
 4. Review each document and run `verify`.
-5. Commit `.project-docs.lock.json` with the reviewed documents.
+5. Commit `.driftlock.lock.json` with the reviewed documents.
 6. Run `check` in agent workflows or CI.
 
 Driftlock never automatically rewrites semantic content, assigns authority,

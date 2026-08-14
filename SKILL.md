@@ -39,7 +39,7 @@ Use `--format json` for agents and automation.
 
 - `discover`, `check`, `impact`, and `archive-plan` are always read-only.
 - `verify` is the only command that writes, and it writes only
-  `.project-docs.lock.json` atomically.
+  `.driftlock.lock.json` atomically.
 - Never call `verify` until an AI or human has reviewed the real code,
   configuration, child documents, and contracts.
 - Do not verify relevant uncommitted paths. Unrelated dirty paths are allowed.
@@ -48,8 +48,8 @@ Use `--format json` for agents and automation.
 - Treat malformed index or lock input as structured errors. A read-only command
   must never emit a Python traceback for user-controlled project metadata.
 
-The compatibility implementation remains at `scripts/project_docs.py` and the
-protocol identifiers `.project-docs.lock.json` and `project-docs-index` remain
+The compatibility implementation remains at `scripts/driftlock.py` and the
+protocol identifiers `.driftlock.lock.json` and `driftlock-index` remain
 stable. They identify the existing format, not the target project's name.
 
 ## Freshness And Propagation

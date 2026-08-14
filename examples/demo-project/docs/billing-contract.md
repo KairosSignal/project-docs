@@ -2,7 +2,7 @@
 
 Invoices expose an immutable invoice identifier.
 
-```project-docs-index
+```driftlock-index
 {
   "schema_version": 2,
   "id": "demo-billing-contract",

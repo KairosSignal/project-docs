@@ -12,7 +12,7 @@
 ## Index Container
 
 Every managed active or superseded Markdown file contains exactly one fenced
-`project-docs-index` block with strict JSON. Archived legacy files may remain
+`driftlock-index` block with strict JSON. Archived legacy files may remain
 unmanaged. Use relative POSIX paths only. Reject absolute paths, Windows
 drive-qualified paths, UNC paths, every backslash path form, `..` escapes, and
 symlinks resolving outside the project root on every operating system.
@@ -51,9 +51,9 @@ When present, `read_when` has exactly this shape:
 allowed. These phrases guide an agent's semantic routing; the CLI validates
 their shape but does not infer task meaning from them.
 
-`0.1.0` is the first tagged public contract for this field. Projects created
+`0.2.0` is the first tagged public contract for this field. Projects created
 from earlier untagged snapshots that used another object shape must migrate to
-`{"any": [...]}` before adopting `0.1.0`.
+`{"any": [...]}` before adopting `0.2.0`.
 
 Use exact `authority_key` equality as a blocking conflict between active docs.
 Use shared suffix segments only for the non-blocking
@@ -80,13 +80,13 @@ the pattern, resolved file set, relative paths, and raw-byte SHA-256 hashes.
 
 ## Lock Format
 
-Commit `.project-docs.lock.json`. Sort documents by ID and serialize with stable
+Commit `.driftlock.lock.json`. Sort documents by ID and serialize with stable
 field ordering and indentation. Each record stores path, authority key,
 document SHA-256, verified commit/time, `status_effect`, and snapshots for
 children, dependencies, and watch paths.
 
 The lock root and every JSON command report include `tool_version`. Version
-`0.1.0` writes this field. Older schema-v2 locks without it remain readable and
+`0.2.0` writes this field. Older schema-v2 locks without it remain readable and
 gain it on their next successful verification.
 
 Bind `status_effect` to the current document hash and verified commit. First

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Deprecated compatibility entrypoint for Project Docs v2."""
+"""Deprecated compatibility entrypoint for Driftlock v2."""
 
 from __future__ import annotations
 
 import sys
 
-from project_docs import main
+from driftlock import main
 
 
 if __name__ == "__main__":

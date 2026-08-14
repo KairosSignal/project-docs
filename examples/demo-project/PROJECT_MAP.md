@@ -4,7 +4,7 @@ Read the backend index for authentication and billing work.
 
 [Backend documentation](docs/backend-index.md)
 
-```project-docs-index
+```driftlock-index
 {
   "schema_version": 2,
   "id": "demo-project-entry",
