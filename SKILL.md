@@ -98,3 +98,6 @@ map it to success. Only exit codes `2` and `3` may block.
   budgets.
 - Read `references/task-system-boundaries.md` when tasks live in WCP, GitHub,
   Jira, Linear, or repository task files.
+- Read `references/task-identity-and-naming.md` when repository-native tasks
+  need stable identities for child scopes, rework rounds, or historical
+  traceability.
