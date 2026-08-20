@@ -23,14 +23,8 @@ jobs:
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             tag="${GITHUB_REF_NAME}"
           else
-            version="$(python - <<'PY2'
-import importlib.util
-spec = importlib.util.spec_from_file_location("driftlock", "scripts/driftlock.py")
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
-print(module.TOOL_VERSION)
-PY2
-)"
+            version="$(sed -n 's/^TOOL_VERSION = "\([^"]*\)"/\1/p' scripts/driftlock.py)"
+            test -n "${version}"
             tag="v${version}"
           fi
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
