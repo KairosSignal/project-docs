@@ -77,3 +77,6 @@ If no tracker exists:
 - If repository-native task files need stable identities across child scopes,
   rework, and archive, read `task-identity-and-naming.md` and document the
   project's chosen convention.
+- If repository-native tasks distinguish review, merge/integration, deployment,
+  and closure, read `task-lifecycle-and-status.md` and document the project's
+  status meanings instead of relying on ambiguous labels such as `done`.

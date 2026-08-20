@@ -44,6 +44,9 @@ content hashes in `.driftlock.lock.json` and reports computed states:
 - Archive isolation from startup context and active dependency graphs
 - Optional problem-register pattern that preserves unresolved feedback without
   converting every observation into an authorized task
+- Recommended task-lifecycle semantics that distinguish review acceptance,
+  integration, deployment, rework, and final closure without imposing a universal
+  tracker schema
 - Structured JSON output for agents and CI
 - Standard-library Python with no runtime dependencies
 
@@ -64,14 +67,15 @@ See `references/problem-register-and-feedback.md` for the recommended states,
 minimum fields, task boundary, deduplication rules, and a Driftlock index
 example.
 
-## Current Release: 0.2.1
+## Current Release: 0.2.2
 
-`0.2.1` adds the optional problem/feedback intake governance pattern, historical
-feedback revalidation rules, and migration guidance for recovering unresolved
-observations from chat, screenshots, and scattered project files. It also fixes
-the canonical repository URLs used by installation examples.
+`0.2.2` adds recommended task lifecycle/status semantics so repository-native
+projects can distinguish implementation, review acceptance, integration,
+deployment, rework, and final closure. It also adds a concrete repository
+problem-register adoption checklist while preserving the rule that problem intake
+does not authorize implementation.
 
-There is no index-schema change and no breaking CLI command change from `0.2.0`.
+There is no index-schema change and no breaking CLI command change from `0.2.1`.
 
 ## Agent Compatibility
 
@@ -165,7 +169,7 @@ Add `--format json` for automation.
 only writing command, and it writes only `.driftlock.lock.json` atomically.
 
 CLI JSON reports and generated lock files include `tool_version`. The current
-release line is `0.2.1`.
+release line is `0.2.2`.
 
 ## File Format
 

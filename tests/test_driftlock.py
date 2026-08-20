@@ -16,6 +16,7 @@ SCRIPT = Path(__file__).parents[1] / "scripts" / "driftlock.py"
 README = Path(__file__).parents[1] / "README.md"
 SKILL = Path(__file__).parents[1] / "SKILL.md"
 PROBLEM_REGISTER_REF = Path(__file__).parents[1] / "references" / "problem-register-and-feedback.md"
+TASK_LIFECYCLE_REF = Path(__file__).parents[1] / "references" / "task-lifecycle-and-status.md"
 DEMO = Path(__file__).parents[1] / "examples" / "run_demo.py"
 
 
@@ -117,6 +118,33 @@ class PackageGovernanceTests(unittest.TestCase):
             "Historical Feedback Must Be Revalidated",
         ):
             self.assertIn(token, text)
+
+    def test_skill_routes_task_lifecycle_to_dedicated_reference(self):
+        text = SKILL.read_text(encoding="utf-8")
+        self.assertIn("references/task-lifecycle-and-status.md", text)
+        self.assertIn("integration, deployment, rework, or final", text)
+
+    def test_task_lifecycle_reference_keeps_accept_deploy_close_distinct(self):
+        text = TASK_LIFECYCLE_REF.read_text(encoding="utf-8")
+        for token in (
+            "ready_for_review",
+            "rework_required",
+            "accepted_pending_integration",
+            "merged_pending_push",
+            "deployed_pending_close",
+            "accepted` does **not** mean merged",
+            "Deployment alone",
+            "runtime correctness",
+            "A task may close without deployment",
+            "does not validate one universal task-status enum",
+        ):
+            self.assertIn(token, text)
+
+    def test_problem_register_reference_includes_repository_adoption_checklist(self):
+        text = PROBLEM_REGISTER_REF.read_text(encoding="utf-8")
+        self.assertIn("Repository Adoption Checklist", text)
+        self.assertIn("exactly one authoritative unresolved-problem intake", text)
+        self.assertIn("task-lifecycle-and-status.md", text)
 
 
 class ParserAndStructureTests(RepoCase):
@@ -373,8 +401,8 @@ class LockAndImpactTests(RepoCase):
         project.verify("child", status_effect="initial")
         lock = json.loads((self.root / ".driftlock.lock.json").read_text(encoding="utf-8"))
 
-        self.assertEqual("0.2.1", payload["tool_version"])
-        self.assertEqual("0.2.1", lock["tool_version"])
+        self.assertEqual("0.2.2", payload["tool_version"])
+        self.assertEqual("0.2.2", lock["tool_version"])
 
     def test_unverified_then_verify_then_current(self):
         self.basic()
@@ -916,7 +944,7 @@ class CliRevisionTests(RepoCase):
         )
 
         self.assertEqual(0, result.returncode)
-        self.assertEqual("0.2.1", json.loads(result.stdout)["tool_version"])
+        self.assertEqual("0.2.2", json.loads(result.stdout)["tool_version"])
 
     def test_runnable_demo_exercises_current_and_stale_workflow(self):
         result = subprocess.run(

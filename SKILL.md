@@ -106,3 +106,6 @@ map it to success. Only exit codes `2` and `3` may block.
 - Read `references/task-identity-and-naming.md` when repository-native tasks
   need stable identities for child scopes, rework rounds, or historical
   traceability.
+- Read `references/task-lifecycle-and-status.md` when task state needs to
+  distinguish implementation, review, integration, deployment, rework, or final
+  closure semantics.

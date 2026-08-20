@@ -162,6 +162,27 @@ Do not create a second register if GitHub Issues, Jira, Linear, WCP, or another
 system is already authoritative for unresolved problem intake. Instead, link to
 that system from the project map or status layer and document the boundary.
 
+## Repository Adoption Checklist
+
+When a project chooses a repository-native problem register, adoption is not
+complete merely because a file exists. Confirm all of the following:
+
+1. The project has exactly one authoritative unresolved-problem intake.
+2. The project entry or current-status layer links to that intake without making
+   the entire register default startup context when it is large.
+3. Collaboration rules state that a problem record does not authorize execution.
+4. Historical complaints enter as `needs_revalidation` unless current evidence
+   already confirms them.
+5. New implementation tasks link back to the originating problem record.
+6. When a task closes, the verified outcome is written back to the problem record
+   as `resolved`, `obsolete`, `parked`, or another documented final state.
+7. Driftlock verifies the current register/index relationship after semantic
+   changes; archived resolved history does not remain an active authority.
+
+For projects with repository-native tasks, pair this intake boundary with
+`task-lifecycle-and-status.md` so problem state and task execution state do not
+collapse into one ambiguous workflow.
+
 ## Relationship To The Task System
 
 The problem register answers:
