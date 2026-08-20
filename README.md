@@ -64,6 +64,15 @@ See `references/problem-register-and-feedback.md` for the recommended states,
 minimum fields, task boundary, deduplication rules, and a Driftlock index
 example.
 
+## Current Release: 0.2.1
+
+`0.2.1` adds the optional problem/feedback intake governance pattern, historical
+feedback revalidation rules, and migration guidance for recovering unresolved
+observations from chat, screenshots, and scattered project files. It also fixes
+the canonical repository URLs used by installation examples.
+
+There is no index-schema change and no breaking CLI command change from `0.2.0`.
+
 ## Agent Compatibility
 
 Driftlock is not tied to one model or coding agent:
@@ -156,7 +165,7 @@ Add `--format json` for automation.
 only writing command, and it writes only `.driftlock.lock.json` atomically.
 
 CLI JSON reports and generated lock files include `tool_version`. The current
-release line is `0.2.0`.
+release line is `0.2.1`.
 
 ## File Format
 

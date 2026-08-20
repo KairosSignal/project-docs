@@ -373,8 +373,8 @@ class LockAndImpactTests(RepoCase):
         project.verify("child", status_effect="initial")
         lock = json.loads((self.root / ".driftlock.lock.json").read_text(encoding="utf-8"))
 
-        self.assertEqual("0.2.0", payload["tool_version"])
-        self.assertEqual("0.2.0", lock["tool_version"])
+        self.assertEqual("0.2.1", payload["tool_version"])
+        self.assertEqual("0.2.1", lock["tool_version"])
 
     def test_unverified_then_verify_then_current(self):
         self.basic()
@@ -916,7 +916,7 @@ class CliRevisionTests(RepoCase):
         )
 
         self.assertEqual(0, result.returncode)
-        self.assertEqual("0.2.0", json.loads(result.stdout)["tool_version"])
+        self.assertEqual("0.2.1", json.loads(result.stdout)["tool_version"])
 
     def test_runnable_demo_exercises_current_and_stale_workflow(self):
         result = subprocess.run(
