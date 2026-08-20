@@ -54,4 +54,6 @@ If no tracker exists:
 - For medium projects, use `docs/tasks/` or one task board.
 - Do not create both `TASKS.md`, `TASK_BOARD.md`, and many task files unless
   their roles are explicit.
-
+- If repository-native task files need stable identities across child scopes,
+  rework, and archive, read `task-identity-and-naming.md` and document the
+  project's chosen convention.
