@@ -15,6 +15,7 @@ Typical files:
 - `docs/current_status.md`
 - `docs/workroom/CURRENT_STATUS.md`
 - `docs/project_brief.md`
+- `docs/current/PROBLEM_REGISTER.md` or an external problem/feedback tracker link, when unresolved observations need a durable intake path
 - `DOCS_MAP.md` only if no existing master can carry the map
 
 Rules:
@@ -23,6 +24,8 @@ Rules:
 - Link to handbooks instead of copying them.
 - Record current source-of-truth boundaries.
 - Do not store full task histories here.
+- Keep a large problem register out of default startup; route to it only when the current task needs unresolved-feedback context.
+- A problem register records unresolved observations and their validation state; it does not authorize implementation.
 
 ## 2. Handbook Layer
 
@@ -92,6 +95,7 @@ Every project should have one obvious place that states:
 
 - current status file
 - task source of truth
+- unresolved problem/feedback source of truth when the project needs one
 - handbook locations
 - archive locations
 - rule for creating new docs

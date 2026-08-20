@@ -14,6 +14,8 @@ from pathlib import Path
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "driftlock.py"
 README = Path(__file__).parents[1] / "README.md"
+SKILL = Path(__file__).parents[1] / "SKILL.md"
+PROBLEM_REGISTER_REF = Path(__file__).parents[1] / "references" / "problem-register-and-feedback.md"
 DEMO = Path(__file__).parents[1] / "examples" / "run_demo.py"
 
 
@@ -87,6 +89,34 @@ class RepoCase(unittest.TestCase):
         self.write("docs/child.md", index_doc(child))
         self.write(".gitattributes", "*.md text eol=lf\n*.json text eol=lf\n*.py text eol=lf\n")
         self.commit()
+
+
+class PackageGovernanceTests(unittest.TestCase):
+    def test_readme_uses_canonical_repository_url(self):
+        text = README.read_text(encoding="utf-8")
+        self.assertIn("https://github.com/KairosSignal/driftlock-agent-docs", text)
+        self.assertNotIn("https://github.com/KairosSignal/driftlock/actions/", text)
+        self.assertNotIn("https://github.com/KairosSignal/driftlock.git", text)
+
+    def test_skill_routes_problem_intake_to_dedicated_reference(self):
+        text = SKILL.read_text(encoding="utf-8")
+        self.assertIn("references/problem-register-and-feedback.md", text)
+        self.assertIn("unresolved feedback", text)
+        self.assertIn("problem records", text)
+
+    def test_problem_register_reference_preserves_task_authorization_boundary(self):
+        text = PROBLEM_REGISTER_REF.read_text(encoding="utf-8")
+        for token in (
+            "needs_revalidation",
+            "confirmed",
+            "in_task",
+            "resolved",
+            "obsolete",
+            "parked",
+            "does not authorize implementation",
+            "Historical Feedback Must Be Revalidated",
+        ):
+            self.assertIn(token, text)
 
 
 class ParserAndStructureTests(RepoCase):

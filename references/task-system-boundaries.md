@@ -25,6 +25,22 @@ Repo documentation records:
 
 Do not make repo docs a second task database.
 
+## Problem Intake Is A Separate Boundary
+
+Projects often need to retain user feedback, screenshots, UX complaints, runtime
+observations, or suspected defects before anyone has authorized implementation.
+Do not force these into the task database merely so they are not forgotten.
+
+Use one authoritative problem/feedback intake when that middle state exists. It
+may be GitHub Issues, Jira, Linear, WCP, a product feedback system, or a
+repository-native current problem register. A problem record can link to a task
+once work is authorized, but it must not itself grant execution authority.
+
+Historical problem reports should be revalidated against the current system
+before they are treated as current defects. Read
+`problem-register-and-feedback.md` for the recommended states and repository
+placement.
+
 ## WCP Pattern
 
 If Work Control Plane is present:
@@ -41,7 +57,9 @@ If Work Control Plane is present:
 
 If GitHub Issues, Jira, Linear, or another tracker is authoritative:
 
-- Link to the tracker from the master/status layer.
+- Link to the tracker from the master/status layer. If it also serves as
+  unresolved problem intake, document that explicitly rather than creating a
+  duplicate repository register.
 - Do not copy issue body fields into docs unless a decision becomes durable.
 - Store durable decisions in ADR/handbook docs.
 - Store postmortems or execution evidence in archive/report docs.
@@ -51,7 +69,9 @@ If GitHub Issues, Jira, Linear, or another tracker is authoritative:
 If no tracker exists:
 
 - A simple `TASKS.md` is enough for small projects.
-- For medium projects, use `docs/tasks/` or one task board.
+- For medium projects, use `docs/tasks/` or one task board. If many unresolved
+  observations exist before task creation, add one problem register with an
+  explicit non-authorization boundary.
 - Do not create both `TASKS.md`, `TASK_BOARD.md`, and many task files unless
   their roles are explicit.
 - If repository-native task files need stable identities across child scopes,

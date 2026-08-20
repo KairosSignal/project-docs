@@ -7,10 +7,11 @@ Run this checklist before creating or moving project documentation.
 1. Can this be appended to an existing master/status file?
 2. Can this be appended to an existing handbook?
 3. Is this a live task that should go to a task system?
-4. Is this historical evidence that belongs in archive?
-5. Will creating this file require updating a docs map or master link?
-6. Is there already a semantically similar file?
-7. Will this create a second source of truth?
+4. Is this an unresolved observation that belongs in the project's existing problem/feedback intake rather than a new task or new document?
+5. Is this historical evidence that belongs in archive?
+6. Will creating this file require updating a docs map or master link?
+7. Is there already a semantically similar file?
+8. Will this create a second source of truth?
 
 If any answer is uncertain, stop and present a recommendation instead of editing.
 
@@ -24,6 +25,7 @@ Flag these as warnings:
 - execution reports copied into status files
 - archive files treated as current rules
 - new docs not linked from any master/status map
+- unresolved problems copied across chat, task boards, and ad hoc feedback files with no single intake authority
 - historical task IDs renumbered by import order
 
 ## Output Format For Audits

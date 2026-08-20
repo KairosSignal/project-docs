@@ -1,6 +1,6 @@
 ---
 name: driftlock
-description: Govern documentation in small through large multi-agent projects using progressive L0/L1/L2 indexes, deterministic freshness checks, dependency propagation, context budgets, and archive isolation. Use when creating, auditing, reorganizing, validating, compacting, or archiving project docs; detecting stale status or contract files after code changes; establishing a project map; or controlling docs/workroom/task/report sprawl.
+description: Govern documentation in small through large multi-agent projects using progressive L0/L1/L2 indexes, deterministic freshness checks, dependency propagation, context budgets, and archive isolation. Use when creating, auditing, reorganizing, validating, compacting, or archiving project docs; detecting stale status or contract files after code changes; establishing a project map; controlling docs/workroom/task/report sprawl; or preserving unresolved user feedback without turning every observation into a task.
 ---
 
 # Driftlock
@@ -17,6 +17,7 @@ create a competing documentation source of truth.
 4. Route the task to the narrowest matching L1 branch via `read_when`.
 5. Load deeper contracts or runbooks only when that branch requires them.
 6. Exclude archive roots unless the task explicitly investigates history.
+7. When unresolved feedback matters, route to the project's authoritative problem/issue intake instead of guessing from chat history or inflating the task board.
 
 If no valid L0 exists, treat the project as unmanaged. Run `discover`; do not
 guess which status file is authoritative.
@@ -70,7 +71,8 @@ Dates never override hash or dependency evidence.
 ## Safety Boundaries
 
 - Do not automatically create authority, semantic summaries, task status,
-  blockers, or next actions.
+  blockers, problem records, or next actions. Follow the project's collaboration
+  rules before writing semantic intake.
 - Do not move, delete, merge, compress, or rewrite documents without a separate
   authorized migration task.
 - Do not use text similarity alone to merge documents.
@@ -98,6 +100,9 @@ map it to success. Only exit codes `2` and `3` may block.
   budgets.
 - Read `references/task-system-boundaries.md` when tasks live in WCP, GitHub,
   Jira, Linear, or repository task files.
+- Read `references/problem-register-and-feedback.md` when user feedback,
+  screenshots, defects, UX complaints, or historical issues need a durable
+  current intake path without automatically becoming tasks.
 - Read `references/task-identity-and-naming.md` when repository-native tasks
   need stable identities for child scopes, rework rounds, or historical
   traceability.

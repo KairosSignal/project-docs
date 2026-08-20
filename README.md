@@ -1,6 +1,6 @@
 # Driftlock
 
-[![Tests](https://github.com/KairosSignal/driftlock/actions/workflows/test.yml/badge.svg)](https://github.com/KairosSignal/driftlock/actions/workflows/test.yml)
+[![Tests](https://github.com/KairosSignal/driftlock-agent-docs/actions/workflows/test.yml/badge.svg)](https://github.com/KairosSignal/driftlock-agent-docs/actions/workflows/test.yml)
 
 Driftlock is an agent skill and a dependency-free Python CLI for keeping
 project documentation aligned with code as a repository changes.
@@ -42,8 +42,27 @@ content hashes in `.driftlock.lock.json` and reports computed states:
 - Git-aware verification with dirty-path protection
 - Read-only discovery and archive planning
 - Archive isolation from startup context and active dependency graphs
+- Optional problem-register pattern that preserves unresolved feedback without
+  converting every observation into an authorized task
 - Structured JSON output for agents and CI
 - Standard-library Python with no runtime dependencies
+
+## Problem Intake Without Task Sprawl
+
+Driftlock distinguishes unresolved observations from authorized work. A project
+may keep user feedback, screenshots, UX complaints, or historical defects in an
+external issue tracker or in a repository-native current problem register. The
+register is optional; the requirement is one authoritative intake path.
+
+A problem record does **not** authorize implementation. Historical feedback
+should normally start as `needs_revalidation`, then become `confirmed`,
+`obsolete`, `parked`, or linked to an authoritative task after current evidence
+is checked. Large registers should stay out of default startup context and be
+loaded only when the current task touches the affected area.
+
+See `references/problem-register-and-feedback.md` for the recommended states,
+minimum fields, task boundary, deduplication rules, and a Driftlock index
+example.
 
 ## Agent Compatibility
 
@@ -64,7 +83,7 @@ Clone the repository into the skill or instruction directory used by your
 agent:
 
 ```bash
-git clone https://github.com/KairosSignal/driftlock.git
+git clone https://github.com/KairosSignal/driftlock-agent-docs.git
 ```
 
 Then either register the cloned directory as the `driftlock` skill or run the
@@ -76,13 +95,13 @@ directory.
 Ask Codex to install the public skill:
 
 ```text
-Install the Driftlock skill from https://github.com/KairosSignal/driftlock
+Install the Driftlock skill from https://github.com/KairosSignal/driftlock-agent-docs
 ```
 
 Or clone it into the Codex skills directory:
 
 ```bash
-git clone https://github.com/KairosSignal/driftlock.git \
+git clone https://github.com/KairosSignal/driftlock-agent-docs.git \
   ~/.codex/skills/driftlock
 ```
 
@@ -199,10 +218,12 @@ candidates without inventing authority or moving files.
 
 1. Run `discover` to understand the existing documentation.
 2. Establish one L0 entry and narrow L1 branches.
-3. Add indexes and explicit dependency edges.
-4. Review each document and run `verify`.
-5. Commit `.driftlock.lock.json` with the reviewed documents.
-6. Run `check` in agent workflows or CI.
+3. Identify the authoritative task system and, when needed, the authoritative
+   unresolved-problem/feedback intake. Do not make the task board serve both roles.
+4. Add indexes and explicit dependency edges.
+5. Review each document and run `verify`.
+6. Commit `.driftlock.lock.json` with the reviewed documents.
+7. Run `check` in agent workflows or CI.
 
 Driftlock never automatically rewrites semantic content, assigns authority,
 moves documents, or deletes archives. Those remain explicit human or agent

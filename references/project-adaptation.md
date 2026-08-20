@@ -26,7 +26,7 @@ Signs:
 Recommended shape:
 
 - Collapse master and handbook into README sections when possible.
-- Use issue tracker or a short `TASKS.md` for tasks.
+- Use issue tracker or a short `TASKS.md` for tasks. If unresolved feedback is rare, keep it in that tracker rather than creating a separate register.
 - Use `archive/` only when history starts getting noisy.
 - Avoid `docs/README.md` unless docs has multiple subtopics.
 
@@ -44,6 +44,7 @@ Recommended shape:
 - Handbook: topic files under docs.
 - Task: external tracker or docs/tasks.
 - Archive: docs/archive, docs/reports, or execution_reports.
+- If user feedback and discovered problems routinely exist before task authorization, use one current problem/feedback register or link to the authoritative external tracker.
 - Add a docs map only if users struggle to find the source of truth.
 
 ## Large / Multi-Agent Project
@@ -60,6 +61,7 @@ Recommended shape:
 - External task system strongly recommended.
 - Master/status must explicitly state the task source of truth.
 - Repo task boards are snapshots only.
+- Keep unresolved user feedback in one authoritative problem/issue intake so it is neither forgotten in chat nor automatically promoted to a task.
 - Handbooks should hold durable rules by topic.
 - Archives should be kept but demoted from current authority.
 - New docs require a placement check and a single link from the master map.
